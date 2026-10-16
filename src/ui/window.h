@@ -11,6 +11,8 @@
 #include <QPlainTextEdit>
 #include <QStackedWidget>
 #include <QTimer>
+#include <QVideoFrame>
+#include <QVideoSink>
 namespace kadro {
 class Window : public QMainWindow {
   Q_OBJECT
@@ -23,6 +25,10 @@ public:
   MediaFilter* mediaFilter() const { return filter_; }
   Canvas* canvas() const { return canvas_; }
   void navigate(int delta);
+  bool hasDecodedMedia() const {
+    return (canvas_ && stage_->currentWidget()==canvas_ && canvas_->hasImage()) ||
+      (video_ && stage_->currentWidget()==video_ && video_->player()->videoSink() && video_->player()->videoSink()->videoFrame().isValid());
+  }
 protected:
   void dragEnterEvent(QDragEnterEvent*) override;
   void dropEvent(QDropEvent*) override;

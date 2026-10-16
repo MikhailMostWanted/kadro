@@ -8,6 +8,9 @@
 #include <QImageReader>
 #include <QMessageBox>
 #include <QTimer>
+#include <QTemporaryDir>
+#include <QSettings>
+#include <memory>
 #include <functional>
 #ifdef Q_OS_WIN
 #include <objbase.h>
@@ -41,6 +44,13 @@ int main(int argc,char** argv) {
   parser.process(app);
   if(parser.positionalArguments().size()>1)parser.showHelp(2);
   const QString path=parser.positionalArguments().isEmpty()?QString():QFileInfo(parser.positionalArguments().first()).absoluteFilePath();
+  std::unique_ptr<QTemporaryDir> smokeSettings;
+  if(parser.isSet(screenshot)) {
+    smokeSettings=std::make_unique<QTemporaryDir>();
+    if(!smokeSettings->isValid())return 5;
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,smokeSettings->path());
+  }
   kadro::SingleInstance instance;
   if(!parser.isSet(isolated)) {
     QString error; int status=instance.start(path,&error);
@@ -52,8 +62,19 @@ int main(int argc,char** argv) {
   QObject::connect(&instance,&kadro::SingleInstance::openRequested,&window,[&](const QString& file){app.open(file);});
   window.show();
   if(!path.isEmpty())QTimer::singleShot(0,&window,[&window,path]{window.openPath(path);});
-  if(parser.isSet(screenshot))QTimer::singleShot(2500,&window,[&window,&app,&parser]{
-    bool ok=window.grab().save(parser.value("smoke-screenshot")); app.exit(ok?0:3);
-  });
+  QElapsedTimer smokeElapsed;
+  if(parser.isSet(screenshot)) {
+    smokeElapsed.start();
+    auto* probe=new QTimer(&window); probe->setInterval(100);
+    QObject::connect(probe,&QTimer::timeout,&window,[&window,&app,&parser,&path,&smokeElapsed]{
+      // A screenshot of an error/empty page is not a successful media smoke test.
+      if(!path.isEmpty() && !window.hasDecodedMedia()) {
+        if(smokeElapsed.elapsed()<15000)return;
+        window.grab().save(parser.value("smoke-screenshot"));app.exit(4);return;
+      }
+      bool ok=window.grab().save(parser.value("smoke-screenshot"));app.exit(ok?0:3);
+    });
+    probe->start();
+  }
   return app.exec();
 }

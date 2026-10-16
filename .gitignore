@@ -11,3 +11,5 @@ Thumbs.db
 *.p12
 *.pfx
 CMakeUserPresets.json
+__pycache__/
+*.pyc

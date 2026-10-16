@@ -15,6 +15,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QVideoSink>
+#include <QVideoFrame>
 using namespace kadro;
 namespace {
 void u32(QByteArray& b,quint32 n){for(int i=0;i<4;++i)b.append(char(n>>(8*i)));}
@@ -102,10 +103,12 @@ private slots:
     window.canvas()->rotateClockwise();window.canvas()->fit();QVERIFY(window.canvas()->hasImage());
     window.canvas()->rotateClockwise();window.canvas()->rotateClockwise();window.canvas()->rotateClockwise();
     QDir().mkpath("test-artifacts");QVERIFY(window.grab().save("test-artifacts/viewer.png"));
+    QFile::remove("test-artifacts/photo.png");QVERIFY(QFile::copy(dir.filePath("Кадр1.png"),"test-artifacts/photo.png"));
     window.close();
   }
   void actualVideoPlayback(){
     QTemporaryDir dir;auto path=dir.filePath("sample.avi");QVERIFY(makeVideo(path));
+    QDir().mkpath("test-artifacts");QFile::remove("test-artifacts/video.avi");QVERIFY(QFile::copy(path,"test-artifacts/video.avi"));
     VideoPane pane;pane.resize(640,400);pane.show();bool frame=false;
     QVERIFY(pane.player()->videoSink()!=nullptr);
     connect(pane.player()->videoSink(),&QVideoSink::videoFrameChanged,&pane,[&frame](const QVideoFrame& value){if(value.isValid())frame=true;});
