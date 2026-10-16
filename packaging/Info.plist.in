@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleDevelopmentRegion</key><string>ru</string>
+<key>CFBundleExecutable</key><string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
+<key>CFBundleIdentifier</key><string>app.kadro.viewer</string>
+<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+<key>CFBundleName</key><string>KADRO</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>${PROJECT_VERSION}</string>
+<key>CFBundleVersion</key><string>${PROJECT_VERSION}</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>CFBundleDocumentTypes</key><array>
+<dict><key>CFBundleTypeName</key><string>Изображение</string>
+<key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>Alternate</string>
+<key>LSItemContentTypes</key><array><string>public.jpeg</string><string>public.png</string><string>com.compuserve.gif</string><string>public.tiff</string><string>com.microsoft.bmp</string><string>org.webmproject.webp</string><string>public.heic</string><string>public.heif</string><string>public.avif</string><string>com.microsoft.ico</string></array>
+<key>CFBundleTypeExtensions</key><array><string>jpg</string><string>jpeg</string><string>png</string><string>gif</string><string>tif</string><string>tiff</string><string>bmp</string><string>webp</string><string>heic</string><string>heif</string><string>avif</string><string>ico</string></array></dict>
+<dict><key>CFBundleTypeName</key><string>Видео</string>
+<key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>Alternate</string>
+<key>LSItemContentTypes</key><array><string>public.movie</string><string>public.mpeg-4</string><string>com.apple.quicktime-movie</string><string>public.avi</string><string>org.matroska.mkv</string><string>org.webmproject.webm</string></array>
+<key>CFBundleTypeExtensions</key><array><string>mp4</string><string>m4v</string><string>mov</string><string>mkv</string><string>webm</string><string>avi</string><string>wmv</string><string>mpg</string><string>mpeg</string><string>mts</string><string>m2ts</string><string>3gp</string></array></dict>
+</array>
+</dict></plist>
