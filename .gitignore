@@ -1,0 +1,13 @@
+/build*/
+/dist/
+/out/
+/Qt/
+*.user
+*.user.*
+.DS_Store
+Thumbs.db
+.env
+*.pem
+*.p12
+*.pfx
+CMakeUserPresets.json

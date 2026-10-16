@@ -1,0 +1,90 @@
+name: Desktop builds
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: kadro-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            qtarch: linux_gcc_64
+            label: linux-test
+          - os: windows-2022
+            qtarch: win64_msvc2022_64
+            label: windows-x64
+          - os: macos-15
+            qtarch: clang_64
+            label: macos-universal
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_MEDIA_BACKEND: ffmpeg
+      QT_FFMPEG_DECODING_HW_DEVICE_TYPES: ','
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Qt 6.8.3
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: ${{ matrix.qtarch }}
+          modules: 'qtmultimedia qtimageformats'
+          cache: true
+      - name: Configure
+        run: |
+          extra=()
+          if [[ "$RUNNER_OS" == 'macOS' ]]; then
+            extra+=('-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' '-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0')
+          fi
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON "${extra[@]}"
+      - name: Build
+        run: cmake --build build --parallel 3
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --output-junit results.xml
+      - name: Package runtime
+        if: runner.os != 'Linux'
+        run: cmake --install build --prefix dist --config Release
+      - name: Archive macOS app
+        if: runner.os == 'macOS'
+        run: |
+          # Preserve framework symlinks and executable modes before artifact upload.
+          ditto -c -k --sequesterRsrc --keepParent dist Kadro-macos-universal.zip
+      - name: Upload macOS package
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kadro-macos-universal
+          path: Kadro-macos-universal.zip
+          if-no-files-found: error
+      - name: Upload Windows package
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kadro-windows-x64
+          path: dist/
+          if-no-files-found: error
+      - name: Test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-${{ matrix.label }}
+          path: |
+            build/results.xml
+            build/Testing/Temporary/LastTest.log
+            build/test-artifacts/
+          if-no-files-found: warn

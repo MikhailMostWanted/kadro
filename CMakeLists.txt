@@ -1,0 +1,57 @@
+cmake_minimum_required(VERSION 3.24)
+project(Kadro VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+option(KADRO_BUILD_APP "Build the desktop application" ON)
+include(CTest)
+add_library(kadro_core src/core/media.cpp)
+target_include_directories(kadro_core PUBLIC src)
+if(MSVC)
+  target_compile_options(kadro_core PUBLIC /utf-8 /W4)
+else()
+  target_compile_options(kadro_core PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+if(BUILD_TESTING)
+  add_executable(kadro_core_tests tests/core_tests.cpp)
+  target_link_libraries(kadro_core_tests PRIVATE kadro_core)
+  add_test(NAME core COMMAND kadro_core_tests)
+endif()
+if(NOT KADRO_BUILD_APP)
+  return()
+endif()
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Concurrent Network Multimedia MultimediaWidgets)
+qt_standard_project_setup()
+add_library(kadro_ui STATIC
+  src/decoder.cpp src/image_store.cpp src/folder_model.cpp
+  src/ui/canvas.cpp src/ui/video_pane.cpp src/ui/window.cpp src/ui/window_actions.cpp
+  src/platform/desktop.cpp src/platform/single_instance.cpp
+)
+target_include_directories(kadro_ui PUBLIC src)
+target_link_libraries(kadro_ui PUBLIC kadro_core Qt6::Widgets Qt6::Concurrent Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets)
+if(WIN32)
+  target_link_libraries(kadro_ui PRIVATE shell32 ole32 windowscodecs)
+endif()
+qt_add_executable(Kadro WIN32 MACOSX_BUNDLE src/main.cpp)
+target_link_libraries(Kadro PRIVATE kadro_ui)
+set_target_properties(Kadro PROPERTIES
+  MACOSX_BUNDLE_BUNDLE_NAME "KADRO"
+  MACOSX_BUNDLE_GUI_IDENTIFIER "app.kadro.viewer"
+  MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+  MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+  MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in"
+)
+if(BUILD_TESTING)
+  find_package(Qt6 REQUIRED COMPONENTS Test)
+  qt_add_executable(kadro_ui_tests tests/ui_tests.cpp)
+  target_link_libraries(kadro_ui_tests PRIVATE kadro_ui Qt6::Test)
+  add_test(NAME ui COMMAND kadro_ui_tests)
+  set_tests_properties(ui PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
+endif()
+include(GNUInstallDirs)
+install(TARGETS Kadro BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES README.md LICENSE THIRD_PARTY.md DESTINATION .)
+if(APPLE OR WIN32)
+  qt_generate_deploy_app_script(TARGET Kadro OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
+  install(SCRIPT ${deploy_script})
+endif()
