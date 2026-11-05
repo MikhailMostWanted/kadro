@@ -1,6 +1,7 @@
 #include <QFileInfo>
 #include "ui/window.h"
 #include "platform/single_instance.h"
+#include "platform/settings_profile.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QElapsedTimer>
@@ -12,6 +13,7 @@
 #include <QSettings>
 #include <memory>
 #include <functional>
+#include <cstdio>
 #ifdef Q_OS_WIN
 #include <objbase.h>
 #endif
@@ -39,20 +41,26 @@ int main(int argc,char** argv) {
   QApplication::setApplicationDisplayName("KADRO"); QApplication::setStyle("Fusion");
   QImageReader::setAllocationLimit(128);
   QCommandLineParser parser; parser.setApplicationDescription("KADRO — просмотр фотографий и видео"); parser.addHelpOption(); parser.addVersionOption(); parser.addPositionalArgument("file","Фото, видео или папка","[file]");
-  QCommandLineOption isolated("isolated","Отдельный процесс (для диагностики)"); parser.addOption(isolated);
-  QCommandLineOption screenshot("smoke-screenshot","Сохранить снимок окна и выйти (диагностика)","path"); parser.addOption(screenshot);
+  kadro::addDiagnosticOptions(parser);
   parser.process(app);
   if(parser.positionalArguments().size()>1)parser.showHelp(2);
   const QString path=parser.positionalArguments().isEmpty()?QString():QFileInfo(parser.positionalArguments().first()).absoluteFilePath();
   std::unique_ptr<QTemporaryDir> smokeSettings;
-  if(parser.isSet(screenshot)) {
+  QString settingsDirectory=parser.value("settings-dir");
+  if(parser.isSet("smoke-screenshot") && !parser.isSet("settings-dir")) {
     smokeSettings=std::make_unique<QTemporaryDir>();
     if(!smokeSettings->isValid())return 5;
-    QSettings::setDefaultFormat(QSettings::IniFormat);
-    QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,smokeSettings->path());
+    settingsDirectory=smokeSettings->path();
+  }
+  if(parser.isSet("settings-dir") || smokeSettings) {
+    QString error;
+    if(!kadro::configureSettingsProfile(settingsDirectory,&error)) {
+      std::fprintf(stderr,"KADRO: %s\n",qPrintable(error));
+      return 5;
+    }
   }
   kadro::SingleInstance instance;
-  if(!parser.isSet(isolated)) {
+  if(!kadro::diagnosticInstance(parser)) {
     QString error; int status=instance.start(path,&error);
     if(status==1)return 0;
     if(status<0){QMessageBox::warning(nullptr,"KADRO",error);return 1;}
@@ -63,7 +71,7 @@ int main(int argc,char** argv) {
   window.show();
   if(!path.isEmpty())QTimer::singleShot(0,&window,[&window,path]{window.openPath(path);});
   QElapsedTimer smokeElapsed;
-  if(parser.isSet(screenshot)) {
+  if(parser.isSet("smoke-screenshot")) {
     smokeElapsed.start();
     auto* probe=new QTimer(&window); probe->setInterval(100);
     QObject::connect(probe,&QTimer::timeout,&window,[&window,&app,&parser,&path,&smokeElapsed]{
