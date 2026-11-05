@@ -24,11 +24,11 @@ void u16(QByteArray& b,quint16 n){b.append(char(n));b.append(char(n>>8));}
 QByteArray chunk(const char* type,QByteArray data){QByteArray b(type,4);u32(b,quint32(data.size()));b+=data;if(data.size()%2)b.append('\0');return b;}
 QByteArray list(const char* type,QByteArray data){return chunk("LIST",QByteArray(type,4)+data);}
 // Self-contained MJPEG AVI fixture: real video frames, no ffmpeg CLI/download.
-bool makeVideo(const QString& path){
-  const int w=320,h=180,count=12;
+bool makeVideo(const QString& path,int count=12){
+  const int w=320,h=180;
   QByteArray movi,idx;quint32 offset=4;
   for(int i=0;i<count;++i){
-    QImage image(w,h,QImage::Format_RGB32);image.fill(QColor::fromHsv(i*24,180,190));
+    QImage image(w,h,QImage::Format_RGB32);image.fill(QColor::fromHsv(i*24%360,180,190));
     QPainter painter(&image);painter.setPen(Qt::white);painter.drawText(image.rect(),Qt::AlignCenter,QString::number(i));painter.end();
     QByteArray jpeg;QBuffer buffer(&jpeg);buffer.open(QIODevice::WriteOnly);if(!image.save(&buffer,"JPEG"))return false;
     auto data=chunk("00dc",jpeg);idx.append("00dc",4);u32(idx,0x10);u32(idx,offset);u32(idx,quint32(jpeg.size()));offset+=quint32(data.size());movi+=data;
@@ -115,6 +115,28 @@ private slots:
     connect(pane.player()->videoSink(),&QVideoSink::videoFrameChanged,&pane,[&frame](const QVideoFrame& value){if(value.isValid())frame=true;});
     pane.open(path);QTRY_VERIFY_WITH_TIMEOUT(frame,15000);QVERIFY(pane.player()->error()==QMediaPlayer::NoError);
     pane.toggle();QCOMPARE(pane.player()->playbackState(),QMediaPlayer::PausedState);pane.seekRelative(300);pane.stop();QCOMPARE(pane.player()->source(),QUrl());
+  }
+  void resumeTwelveSecondVideoAtFiveSeconds(){
+    QTemporaryDir dir;const auto path=dir.filePath("resume12.avi");QVERIFY(makeVideo(path,60));
+    QSettings settings;settings.setValue("video/resume",true);settings.setValue("video/positions",QByteArray("{}"));settings.sync();
+    VideoPane pane;pane.open(path);
+    QTRY_COMPARE_WITH_TIMEOUT(pane.player()->duration(),12000,5000);
+    QTRY_VERIFY_WITH_TIMEOUT(pane.player()->isSeekable(),5000);
+    pane.player()->pause();pane.player()->setPosition(5000);
+    QCOMPARE(pane.player()->position(),5000);pane.stop();
+    const auto persisted=QSettings().value("video/positions").toByteArray();
+    QVERIFY(persisted.contains(":5000"));
+    bool restored=false;QList<qint64> positions;
+    connect(pane.player(),&QMediaPlayer::positionChanged,&pane,[&](qint64 position){
+      positions.append(position);
+      if(position>=5000 && position<5600)restored=true;
+    });
+    pane.open(path);
+    // Starting from zero cannot naturally reach 5 seconds within this bound.
+    QTRY_VERIFY_WITH_TIMEOUT(restored,2000);
+    pane.player()->pause();QVERIFY(pane.player()->position()>=5000);
+    QVERIFY(positions.contains(5000));qInfo()<<"Resume position signals (ms):"<<positions;
+    pane.stop();
   }
 };
 QTEST_MAIN(UiTests)
