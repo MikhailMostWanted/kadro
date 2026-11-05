@@ -2,6 +2,7 @@
 #include "folder_model.h"
 #include "image_store.h"
 #include "platform/desktop.h"
+#include "platform/settings_profile.h"
 #include "ui/window.h"
 #include <QApplication>
 #include <QBuffer>
@@ -53,7 +54,7 @@ class UiTests : public QObject {
 private slots:
   void initTestCase(){
     QVERIFY(settings_.isValid());QCoreApplication::setOrganizationName("KadroTests");QCoreApplication::setApplicationName("KadroTests");
-    QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settings_.path());
+    QString error;QVERIFY2(configureSettingsProfile(settings_.path(),&error),qPrintable(error));
     QImageReader::setAllocationLimit(128);
   }
   void decodeAndCorruption(){
