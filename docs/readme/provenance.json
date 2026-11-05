@@ -1,0 +1,28 @@
+{
+  "source_sha": "e1c11fec74b79d66def1ed88976d71c34d831aca",
+  "kind": "Actual native app window captures, unmodified",
+  "platform": "macOS26.6.2 arm64,Qt6.8.3 Cocoa",
+  "media": "Original synthetic images and FFmpeg testsrc2+sine,task-owned only",
+  "user_media": false,
+  "ai_image_generation": false,
+  "images": [
+    {
+      "file": "macos-photo.png",
+      "evidence_file": "evidence/products/kadro/native-01-photo.png",
+      "sha256": "1171c2f40dc57d0239fd529f3fb324bf73b984136eafd9daca7c66f4fb94d874",
+      "description": "Нативное окно установленного пакета, исходное фото"
+    },
+    {
+      "file": "macos-view-rotation.png",
+      "evidence_file": "evidence/products/kadro/native-03-rotate-fit.png",
+      "sha256": "fcdac29c4756d68dee967bb97c7664bdd727804e0df2881d05916961080d8372",
+      "description": "Поворот только вида и вписывание"
+    },
+    {
+      "file": "macos-video.png",
+      "evidence_file": "evidence/products/kadro/native-08-video-frame-b.png",
+      "sha256": "8f65f37cd74288b0ae87473818a6b7aae9224c2a034591dd0e6ae9c63905ee22",
+      "description": "Реально видимый движущийся H264 кадр12 вpackagedCocoa window"
+    }
+  ]
+}
