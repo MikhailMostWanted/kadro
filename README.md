@@ -1,10 +1,10 @@
-# KADRO
+# Wanted View
 
 **Фото и видео. В одном окне.**
 
 Локальный просмотрщик для Windows и macOS. Открываешь файл — листаешь соседние. Никакого импорта в библиотеку, регистрации, сервера или телеметрии.
 
-Версия 0.1.0 — первая реализация, не финальный релиз. Наличие кода и зелёные автоматические тесты не заменяют проверку сборки на реальных Windows/Mac, HEIC с iPhone и аппаратного декодирования. Текущий результат проверок фиксируется в `docs/VALIDATION.md`.
+Wanted View входит в WANTED Labs. Установщики 0.1.0 RC предназначены для приёмки. [Установка и удаление](docs/INSTALL.md) · [Проверки и ограничения](docs/VALIDATION.md).
 
 ## Что уже реализовано
 
@@ -41,7 +41,14 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-Если Qt не найден, передайте `-DCMAKE_PREFIX_PATH=/путь/к/Qt/6.8.3/платформа`. На Windows запускайте команды в окружении MSVC 2022; Qt должен быть собран для того же компилятора. На Mac задайте `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` только с универсальным комплектом зависимостей.
+Если Qt не найден, передайте `-DCMAKE_PREFIX_PATH=/путь/к/Qt/6.8.3/платформа`. На Windows запускайте команды в окружении MSVC 2022; Qt должен быть собран для того же компилятора. Для универсального приложения на Mac нужен Qt с обеими архитектурами. Qt 6.8.3 требует SDK macOS 15 для этой сборки: его конфигурация ссылается на AGL, удалённый из более новых SDK. Укажите путь к установленному SDK без смены системного Xcode, например:
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+  -DCMAKE_PREFIX_PATH=/путь/к/Qt/6.8.3/macos \
+  -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk \
+  '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+```
 
 Запуск:
 
@@ -60,15 +67,20 @@ ctest --test-dir build --output-on-failure
 cmake --install build --prefix dist --config Release
 ```
 
-В Windows запускается `dist/bin/Kadro.exe`; передавать надо **всю** папку `dist`, не один EXE. В macOS — `dist/Kadro.app`. Workflow `Desktop builds` собирает Windows x64, универсальный Mac и проверяет Linux. Архив Mac сохраняет символьные ссылки внутри bundle. Пакеты появляются в Actions → нужный запуск → Artifacts, только после успешных тестов.
+На Mac упакуйте установленный bundle в DMG:
 
-Подпись Windows и notarization Apple ещё не настроены. До отдельной проверки лицензий комплектуемых библиотек и подписания это тестовые пакеты, не публичный установщик. Приложение не отключает системные проверки безопасности.
+```sh
+tools/package_macos.sh dist WantedView-macOS-universal-RC.dmg
+```
 
-### Сделать просмотрщиком по умолчанию
+На Windows x64 выполните в PowerShell с Inno Setup 6.3+ (путь к компилятору зависит от установки):
 
-**Windows:** поместите папку приложения на постоянное место → в KADRO меню `•••` → «Приложение по умолчанию…» → выберите форматы в параметрах Windows. Регистрация только для текущего пользователя, без прав администратора и изменения `UserChoice`.
+```powershell
+$iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+& $iscc "/DStageDir=$PWD\dist" "/DProductVersion=0.1.0" "/O$PWD" packaging/wanted-view.iss
+```
 
-**macOS:** перенесите `Kadro.app` в «Программы» → свойства файла в Finder → «Открывать в программе» → KADRO → изменить для всех файлов этого типа.
+Workflow [Desktop builds](.github/workflows/build.yml) собирает DMG, установщик Windows x64 и portable-пакет. Для Mac он монтирует DMG, копирует приложение и открывает фото и видео из копии. Для Windows он проверяет установку для текущего пользователя, запуск и удаление. Артефакты появляются в Actions после этих проверок. Порядок установки и системного выбора приложения описан в [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Управление
 
@@ -89,6 +101,7 @@ cmake --install build --prefix dist --config Release
 | Показать в папке | Ctrl/Cmd+R |
 | Копировать файл / путь | Ctrl/Cmd+C / Ctrl/Cmd+Shift+C |
 | Переименовать / в корзину | F2 / Delete |
+| Меню действий | F10 |
 
 ## Архитектура
 

@@ -34,7 +34,7 @@ SingleInstance::SingleInstance(QObject* parent):QObject(parent) {
 }
 int SingleInstance::start(const QString& path,QString* error) {
   const QString root=QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-  if (!QDir().mkpath(root)) { *error="Не удалось создать папку настроек KADRO."; return -1; }
+  if (!QDir().mkpath(root)) { *error="Не удалось создать папку настроек Wanted View."; return -1; }
   const QString suffix=QString::fromLatin1(QCryptographicHash::hash(root.toUtf8(),QCryptographicHash::Sha256).toHex().left(24));
   const QString name="kadro-"+suffix;
   lock_=std::make_unique<QLockFile>(root+"/instance.lock"); lock_->setStaleLockTime(0);
@@ -49,7 +49,7 @@ int SingleInstance::start(const QString& path,QString* error) {
         if (socket.readAll().startsWith("OK")) return 1;
       }
     }
-    *error="KADRO уже запущен, но не ответил. Закройте его окно и повторите открытие."; return -1;
+    *error="Wanted View уже запущен, но не ответил. Закройте его окно и повторите открытие."; return -1;
   }
   QLocalServer::removeServer(name); // safe: the per-user lock is held
   if (!server_.listen(name)) { *error=server_.errorString(); return -1; }

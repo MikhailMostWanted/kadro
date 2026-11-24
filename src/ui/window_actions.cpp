@@ -3,6 +3,7 @@
 #include "window.h"
 #include "platform/desktop.h"
 #include <QApplication>
+#include <QPushButton>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QDesktopServices>
@@ -50,9 +51,14 @@ void Window::buildActions() {
   action("Приложение по умолчанию…",{},[this]{defaultApplication();});
   action("Забыть позиции видео",{},[this]{QSettings().remove("video/positions");toast("Сохранённые позиции удалены. Текущее видео сохранит новую позицию при закрытии.");});
   action("Горячие клавиши",QKeySequence("?"),[this]{
-    QMessageBox::information(this,"Управление KADRO","← / → — предыдущий / следующий файл\nHome / End — первый / последний\nКолесо — масштаб; перетаскивание — движение\nF — вписать; 1 — исходный масштаб\nR — повернуть вид, не меняя оригинал\nПробел — пауза видео или анимации\nCtrl/Cmd + ← / → — перемотка на 5 секунд\nT — лента; I — сведения; S — слайд-шоу\nF11 / двойной щелчок — полный экран\nTab — скрыть панели; Esc — вернуть / выйти\nCtrl/Cmd+O — открыть файл\nCtrl/Cmd+R — показать в папке\nCtrl/Cmd+C — скопировать файл\nCtrl/Cmd+Shift+C — скопировать путь\nF2 — переименовать; Delete — в корзину");
+    QMessageBox::information(this,"Управление Wanted View","← / → — предыдущий / следующий файл\nHome / End — первый / последний\nКолесо — масштаб; перетаскивание — движение\nF — вписать; 1 — исходный масштаб\nR — повернуть вид, не меняя оригинал\nПробел — пауза видео или анимации\nCtrl/Cmd + ← / → — перемотка на 5 секунд\nT — лента; I — сведения; S — слайд-шоу\nF11 / двойной щелчок — полный экран\nTab — скрыть панели; Esc — вернуть / выйти\nCtrl/Cmd+O — открыть файл\nCtrl/Cmd+R — показать в папке\nCtrl/Cmd+C — скопировать файл\nCtrl/Cmd+Shift+C — скопировать путь\nF2 — переименовать; Delete — в корзину\nF10 — меню действий и настроек");
   });
-  action("О KADRO",{},[this]{QMessageBox::about(this,"KADRO","KADRO 0.1.0\nФото и видео в одном окне.\n\nЛокальное приложение без аккаунтов, серверов и телеметрии.\n\nC++20 · Qt 6\nКод приложения: MIT. Лицензии зависимостей — THIRD_PARTY.md.");});
+  action("О Wanted View", {}, [this] {
+    QMessageBox::about(this, "Wanted View",
+      "Wanted View " + QApplication::applicationVersion() +
+      "\nПросмотр фотографий и видео\nПродукт WANTED Labs"
+      "\n\nКод приложения: MIT. Лицензии зависимостей — THIRD_PARTY.md.");
+  });
   key(QKeySequence(Qt::Key_Left),[this]{navigate(-1);}); key(QKeySequence(Qt::Key_Right),[this]{navigate(1);});
   key(QKeySequence(Qt::Key_Home),[this]{if(filter_->rowCount())showFile(pathAt(0));}); key(QKeySequence(Qt::Key_End),[this]{if(filter_->rowCount())showFile(pathAt(filter_->rowCount()-1));});
   key(QKeySequence("F"),[this]{canvas_->fit();}); key(QKeySequence("1"),[this]{requestNative(true);}); key(QKeySequence("R"),[this]{canvas_->rotateClockwise();});
@@ -92,17 +98,39 @@ void Window::renameCurrent() {
   showFile(next,true);refresh(next);
 }
 void Window::trashCurrent() {
-  if(current_.isEmpty())return;
-  const auto answer=QMessageBox::question(this,"Переместить в корзину?",QFileInfo(current_).fileName()+"\n\nФайл можно будет восстановить из системной корзины.",QMessageBox::Yes|QMessageBox::Cancel,QMessageBox::Cancel);
-  if(answer!=QMessageBox::Yes)return;
-  const auto old=current_; const int row=currentRow();
-  QString next=filter_->rowCount()>1?pathAt(nextIndex(row,filter_->rowCount(),1)):QString();
-  if(video_)video_->stop(); canvas_->clearImage(); images_->clearPending();
-  auto error=desktop::trashFile(old);
-  if(!error.isEmpty()){showFile(old,true);QMessageBox::warning(this,"Корзина",error);return;}
+  if (current_.isEmpty()) return;
+  const QString old = current_;
+  QMessageBox confirmation(QMessageBox::Question, "Переместить в корзину?",
+    QFileInfo(old).fileName() + "\n\nФайл можно восстановить из системной корзины.",
+    QMessageBox::NoButton, this);
+  confirmation.setTextFormat(Qt::PlainText);
+  auto* move = confirmation.addButton("В корзину", QMessageBox::AcceptRole);
+  auto* cancel = confirmation.addButton("Отмена", QMessageBox::RejectRole);
+  confirmation.setDefaultButton(cancel);
+  confirmation.setEscapeButton(cancel);
+  confirmation.exec();
+  if (confirmation.clickedButton() != move) return;
+  if (current_ != old) {
+    toast("Открыт другой файл. Повторите действие для нужного файла.");
+    return;
+  }
+
+  const int row = currentRow();
+  const QString next = filter_->rowCount() > 1 ? pathAt(nextIndex(row, filter_->rowCount(), 1)) : QString();
+  if (video_) video_->stop();
+  canvas_->clearImage();
+  images_->clearPending();
+  const auto error = desktop::trashFile(old);
+  if (!error.isEmpty()) {
+    showFile(old, true);
+    QMessageBox::warning(this, "Корзина", error);
+    return;
+  }
+
   current_.clear();
-  if(!next.isEmpty()&&next!=old)showFile(next,true);else showMessage("Файл в корзине","Выберите другой файл или папку.");
-  refresh(next==old?QString():next);
+  if (!next.isEmpty() && next != old) showFile(next, true);
+  else showMessage("Файл в корзине", "Выберите другой файл или папку.");
+  refresh(next == old ? QString() : next);
 }
 void Window::defaultApplication() {
   if(!desktop::registerViewer()){QMessageBox::warning(this,"Приложение по умолчанию","Не удалось зарегистрировать приложение для текущего пользователя.");return;}
@@ -127,7 +155,7 @@ void Window::applyTheme() {
   const bool light=QSettings().value("view/light",false).toBool();
   const QString bg=light?"#f7f7f8":"#18191c", text=light?"#24262b":"#e8e9ed", muted=light?"#6c717b":"#959aa5", border=light?"#dedfe3":"#303238", hover=light?"#e9eaed":"#303238", selected=light?"#d9dce3":"#414550";
   setStyleSheet(QString(R"(
-    QMainWindow, QWidget { background: %1; color: %2; font-family: "Segoe UI", ".AppleSystemUIFont", "DejaVu Sans"; font-size: 13px; }
+    QMainWindow, QWidget { background: %1; color: %2; font-size: 13px; }
     QWidget#topBar { border-bottom: 1px solid %4; }
     QWidget#bottomBar, QWidget#videoBar { border-top: 1px solid %4; }
     QLabel#brand { font-size: 15px; font-weight: 700; padding-right: 12px; }
@@ -143,7 +171,6 @@ void Window::applyTheme() {
     QPushButton#segment:checked { background: %1; }
     QToolButton::menu-indicator { image: none; }
     QWidget#messagePage { background: %1; }
-    QLabel#emptyMark { font-size: 72px; font-weight: 300; color: %3; margin-bottom: 12px; }
     QLabel#emptyHeading { font-size: 25px; font-weight: 600; }
     QListView#filmstrip { border: none; border-top: 1px solid %4; padding: 6px; outline: none; }
     QListView::item { padding: 4px; border-radius: 7px; }

@@ -38,6 +38,10 @@ jobs:
       - name: MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+      - name: Select macOS 15 SDK for Qt 6.8
+        if: runner.os == 'macOS'
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> "$GITHUB_ENV"
       - name: Qt 6.8.3
         uses: jurplel/install-qt-action@v4
         with:
@@ -50,6 +54,7 @@ jobs:
           extra=()
           if [[ "$RUNNER_OS" == 'macOS' ]]; then
             extra+=('-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' '-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0')
+            extra+=("-DCMAKE_OSX_SYSROOT=$(xcrun --sdk macosx --show-sdk-path)")
           fi
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON "${extra[@]}"
       - name: Build
@@ -59,22 +64,45 @@ jobs:
       - name: Package runtime
         if: runner.os != 'Linux'
         run: cmake --install build --prefix "$GITHUB_WORKSPACE/dist" --config Release
-      - name: Check packaged photo and video
-        if: runner.os != 'Linux'
-        run: python tools/check_package.py dist build/test-artifacts
-      - name: Archive macOS app
+      - name: Create and check macOS disk image
         if: runner.os == 'macOS'
         run: |
-          # Preserve framework symlinks and executable modes before artifact upload.
-          ditto -c -k --sequesterRsrc --keepParent dist Kadro-macos-universal.zip
-      - name: Upload macOS package
+          tools/package_macos.sh dist WantedView-macOS-universal-RC.dmg
+          hdiutil verify WantedView-macOS-universal-RC.dmg
+          work="$(mktemp -d)"
+          mkdir "$work/mount" "$work/installed"
+          hdiutil attach WantedView-macOS-universal-RC.dmg -readonly -nobrowse -mountpoint "$work/mount"
+          trap 'hdiutil detach "$work/mount"' EXIT
+          ditto "$work/mount/Kadro.app" "$work/installed/Kadro.app"
+          arches=" $(lipo -archs "$work/installed/Kadro.app/Contents/MacOS/Kadro") "
+          [[ "$arches" == *" arm64 "* && "$arches" == *" x86_64 "* ]]
+          codesign --verify --deep --strict "$work/installed/Kadro.app"
+          python tools/check_package.py "$work/installed" build/test-artifacts
+      - name: Create and check per-user Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (!(Test-Path -LiteralPath $iscc)) { throw 'Inno Setup 6 compiler is missing' }
+          $version = (Select-String -LiteralPath CMakeLists.txt -Pattern '^project\(Kadro VERSION ([0-9.]+) ').Matches[0].Groups[1].Value
+          & $iscc "/DStageDir=$PWD\dist" "/DProductVersion=$version" "/O$PWD" packaging/wanted-view.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC returned $LASTEXITCODE" }
+          ./tools/check_windows_installer.ps1 -Setup WantedView-Windows-x64-RC.exe -FixtureDir build/test-artifacts
+      - name: Upload macOS disk image
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: Kadro-macos-universal
-          path: Kadro-macos-universal.zip
+          name: WantedView-macOS-universal-RC
+          path: WantedView-macOS-universal-RC.dmg
           if-no-files-found: error
-      - name: Upload Windows package
+      - name: Upload Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: WantedView-Windows-x64-RC
+          path: WantedView-Windows-x64-RC.exe
+          if-no-files-found: error
+      - name: Upload Windows portable package
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
