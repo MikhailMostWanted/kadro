@@ -74,7 +74,8 @@ jobs:
           hdiutil attach WantedView-macOS-universal-RC.dmg -readonly -nobrowse -mountpoint "$work/mount"
           trap 'hdiutil detach "$work/mount"' EXIT
           ditto "$work/mount/Kadro.app" "$work/installed/Kadro.app"
-          lipo -verify_arch arm64 x86_64 "$work/installed/Kadro.app/Contents/MacOS/Kadro"
+          arches=" $(lipo -archs "$work/installed/Kadro.app/Contents/MacOS/Kadro") "
+          [[ "$arches" == *" arm64 "* && "$arches" == *" x86_64 "* ]]
           codesign --verify --deep --strict "$work/installed/Kadro.app"
           python tools/check_package.py "$work/installed" build/test-artifacts
       - name: Create and check per-user Windows installer
