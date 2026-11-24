@@ -61,6 +61,12 @@ install(TARGETS Kadro BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_B
 install(FILES README.md LICENSE THIRD_PARTY.md DESTINATION .)
 install(FILES docs/INSTALL.md DESTINATION docs)
 if(APPLE OR WIN32)
-  qt_generate_deploy_app_script(TARGET Kadro OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
+  if(APPLE AND Qt6_VERSION VERSION_GREATER_EQUAL 6.7)
+    # Seal the bundle after macdeployqt changes the executable and plugins.
+    # Developer ID signing and notarization belong to the release process.
+    set(deploy_options DEPLOY_TOOL_OPTIONS -codesign=-)
+  endif()
+  qt_generate_deploy_app_script(TARGET Kadro OUTPUT_SCRIPT deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR ${deploy_options})
   install(SCRIPT ${deploy_script})
 endif()

@@ -155,7 +155,7 @@ void Window::applyTheme() {
   const bool light=QSettings().value("view/light",false).toBool();
   const QString bg=light?"#f7f7f8":"#18191c", text=light?"#24262b":"#e8e9ed", muted=light?"#6c717b":"#959aa5", border=light?"#dedfe3":"#303238", hover=light?"#e9eaed":"#303238", selected=light?"#d9dce3":"#414550";
   setStyleSheet(QString(R"(
-    QMainWindow, QWidget { background: %1; color: %2; font-family: "Segoe UI", ".AppleSystemUIFont", "DejaVu Sans"; font-size: 13px; }
+    QMainWindow, QWidget { background: %1; color: %2; font-size: 13px; }
     QWidget#topBar { border-bottom: 1px solid %4; }
     QWidget#bottomBar, QWidget#videoBar { border-top: 1px solid %4; }
     QLabel#brand { font-size: 15px; font-weight: 700; padding-right: 12px; }
