@@ -10,6 +10,7 @@
 #include <QLocale>
 #include <QPushButton>
 #include <QSettings>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QStatusBar>
 #include <QToolButton>
@@ -19,7 +20,7 @@ static QPushButton* button(const QString& text,QWidget* parent) {
   auto* b=new QPushButton(text,parent); b->setCursor(Qt::PointingHandCursor); b->setFocusPolicy(Qt::NoFocus); return b;
 }
 Window::Window(QWidget* parent) : QMainWindow(parent), model_(new FolderModel(this)), filter_(new MediaFilter(this)), images_(new ImageStore(128,3,this)) {
-  setWindowTitle("KADRO"); setMinimumSize(820,520); resize(1200,800); setAcceptDrops(true);
+  setWindowTitle(QApplication::applicationDisplayName()); setMinimumSize(820,520); resize(1200,800); setAcceptDrops(true);
   filter_->setSourceModel(model_);
   buildUi(); buildActions(); applyTheme();
   QSettings settings;
@@ -74,7 +75,7 @@ void Window::buildUi() {
   auto* layout=new QVBoxLayout(root); layout->setContentsMargins(0,0,0,0); layout->setSpacing(0);
   top_=new QWidget(root); top_->setObjectName("topBar");
   auto* header=new QHBoxLayout(top_); header->setContentsMargins(22,16,18,16); header->setSpacing(16);
-  auto* brand=new QLabel("K A D R O",top_); brand->setObjectName("brand"); header->addWidget(brand);
+  auto* brand=new QLabel(QApplication::applicationDisplayName(),top_); brand->setObjectName("brand"); header->addWidget(brand);
   auto* meta=new QVBoxLayout; meta->setSpacing(3);
   title_=new QLabel("Просмотрщик медиа",top_); title_->setTextFormat(Qt::PlainText); title_->setObjectName("fileTitle"); title_->setMinimumWidth(120); title_->setMaximumWidth(420);
   subtitle_=new QLabel("Локально. Только ваши файлы.",top_); subtitle_->setObjectName("muted"); subtitle_->setTextFormat(Qt::PlainText);
@@ -87,14 +88,14 @@ void Window::buildUi() {
   kinds_->button(0)->setChecked(true); header->addWidget(segmented);
   connect(kinds_,&QButtonGroup::idClicked,this,[this](int id){ selectKind(id==1?Kind::Photo:id==2?Kind::Video:Kind::Unknown); });
   auto* open=button("Открыть",top_); open->setObjectName("primary"); header->addWidget(open); connect(open,&QPushButton::clicked,this,&Window::chooseFile);
-  auto* more=new QToolButton(top_); more->setText("•••"); more->setToolTip("Действия и настройки"); more->setAccessibleName("Действия и настройки"); more->setPopupMode(QToolButton::InstantPopup);
+  auto* more=new QToolButton(top_); more->setText("•••"); more->setToolTip("Действия и настройки (F10)"); more->setAccessibleName("Действия и настройки"); more->setPopupMode(QToolButton::InstantPopup);
   more->setFocusPolicy(Qt::NoFocus); menu_=new QMenu(more); more->setMenu(menu_); header->addWidget(more); layout->addWidget(top_);
+  new QShortcut(QKeySequence(Qt::Key_F10), more, [more]{ more->showMenu(); });
   auto* body=new QHBoxLayout; body->setContentsMargins(0,0,0,0); body->setSpacing(0);
   stage_=new QStackedWidget(root); stage_->setObjectName("stage");
   canvas_=new Canvas(stage_); stage_->addWidget(canvas_);
   messagePage_=new QWidget(stage_); messagePage_->setObjectName("messagePage");
   auto* empty=new QVBoxLayout(messagePage_); empty->setAlignment(Qt::AlignCenter); empty->setContentsMargins(40,40,40,40); empty->setSpacing(18);
-  auto* mark=new QLabel("K",messagePage_); mark->setAlignment(Qt::AlignCenter); mark->setObjectName("emptyMark"); empty->addWidget(mark);
   heading_=new QLabel(messagePage_); heading_->setTextFormat(Qt::PlainText); heading_->setObjectName("emptyHeading"); heading_->setAlignment(Qt::AlignCenter); heading_->setWordWrap(true); empty->addWidget(heading_);
   message_=new QLabel(messagePage_); message_->setTextFormat(Qt::PlainText); message_->setAlignment(Qt::AlignCenter); message_->setWordWrap(true); message_->setObjectName("muted"); empty->addWidget(message_);
   auto* row=new QHBoxLayout; row->addStretch();
@@ -202,7 +203,8 @@ void Window::updateLabels() {
   counter_->setText(model_->isScanning()?"…":QString("%1 / %2").arg(row<0?0:row+1).arg(filter_->rowCount()));
   const QFileInfo f(current_);
   title_->setText(current_.isEmpty()?"Просмотрщик медиа":title_->fontMetrics().elidedText(f.fileName(),Qt::ElideMiddle,qMax(120,title_->width())));
-  title_->setToolTip(current_); setWindowTitle(current_.isEmpty()?"KADRO":f.fileName()+" — KADRO");
+  title_->setToolTip(current_); const QString name = QApplication::applicationDisplayName();
+  setWindowTitle(current_.isEmpty() ? name : f.fileName() + " — " + name);
   if(current_.isEmpty()) { subtitle_->setText("Локально. Только ваши файлы."); scale_->clear(); info_->clear(); return; }
   QString meta=f.suffix().toUpper()+"  ·  "+QLocale().formattedDataSize(f.size());
   if(decoded_.original.isValid())meta+=QString("  ·  %1 × %2").arg(decoded_.original.width()).arg(decoded_.original.height());

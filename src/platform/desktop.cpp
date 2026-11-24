@@ -55,7 +55,7 @@ QString renameFile(const QString& path,const QString& newName,QString* resulting
 }
 QString trashFile(const QString& path) {
   QFile file(path);
-  if (!file.exists()) return "Файл больше не существует.";
+  if (!QFileInfo(path).isFile()) return "Файл больше не существует или на его месте находится папка.";
   if (!file.moveToTrash()) return "Не удалось переместить файл в корзину: "+file.errorString()+" Оригинал оставлен на месте.";
   return {};
 }
@@ -64,12 +64,13 @@ bool registerViewer() {
   const QString exe=QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
   const QString command='"'+exe+"\" \"%1\"";
   QSettings classes("HKEY_CURRENT_USER\\Software\\Classes",QSettings::NativeFormat);
-  classes.setValue("Kadro.Media/Default","Медиафайл KADRO");
+  const QString displayName = QApplication::applicationDisplayName();
+  classes.setValue("Kadro.Media/Default","Медиафайл " + displayName);
   classes.setValue("Kadro.Media/shell/open/command/Default",command);
-  classes.setValue("Applications/Kadro.exe/FriendlyAppName","KADRO");
+  classes.setValue("Applications/Kadro.exe/FriendlyAppName",displayName);
   classes.setValue("Applications/Kadro.exe/shell/open/command/Default",command);
   QSettings cap("HKEY_CURRENT_USER\\Software\\Kadro\\Capabilities",QSettings::NativeFormat);
-  cap.setValue("ApplicationName","KADRO"); cap.setValue("ApplicationDescription","Просмотр фотографий и видео");
+  cap.setValue("ApplicationName",displayName); cap.setValue("ApplicationDescription","Просмотр фотографий и видео");
   const QStringList extensions={"jpg","jpeg","png","gif","bmp","webp","tif","tiff","heic","heif","avif","ico","mp4","m4v","mov","mkv","webm","avi","wmv","mpg","mpeg","mts","m2ts","3gp"};
   for (const auto& ext:extensions) {
     classes.setValue('.'+ext+"/OpenWithProgids/Kadro.Media",QString());
@@ -87,11 +88,11 @@ bool registerViewer() {
 }
 QString defaultAppInstructions() {
 #ifdef Q_OS_WIN
-  return "KADRO добавлен в список приложений. В параметрах Windows выберите KADRO для нужных расширений. Выбор по умолчанию остаётся за вами. Не перемещайте папку приложения после регистрации.";
+  return "Wanted View добавлен в список приложений. В параметрах Windows выберите его для нужных расширений. После регистрации оставьте приложение в той же папке.";
 #elif defined(Q_OS_MACOS)
-  return "Перенесите KADRO.app в «Программы». В Finder выберите файл → «Свойства» → «Открывать в программе» → KADRO → «Настроить… / Изменить всё». Повторите для нужных типов файлов.";
+  return "Перенесите Kadro.app в «Программы». В Finder выберите файл → «Свойства» → «Открывать в программе» → Wanted View → «Настроить… / Изменить всё». Повторите для нужных типов файлов.";
 #else
-  return "Выберите KADRO через «Открыть с помощью» в файловом менеджере.";
+  return "Выберите Wanted View через «Открыть с помощью» в файловом менеджере.";
 #endif
 }
 #ifdef Q_OS_WIN

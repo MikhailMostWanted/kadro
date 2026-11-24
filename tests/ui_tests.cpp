@@ -92,6 +92,15 @@ private slots:
     QVERIFY(!desktop::renameFile(source,"occupied.png",&target).isEmpty());QVERIFY(QFileInfo::exists(source));
     QVERIFY(!desktop::renameFile(source,"../escape.png",&target).isEmpty());QVERIFY(!desktop::renameFile(source,"CON.png",&target).isEmpty());
     QVERIFY(desktop::renameFile(source,"Новое имя.png",&target).isEmpty());QVERIFY(QFileInfo::exists(target));QVERIFY(!QFileInfo::exists(source));
+  }
+  void safeTrashRejectsNonFiles(){
+    QTemporaryDir dir;
+    const auto folder = dir.filePath("photo.png");
+    QVERIFY(QDir().mkpath(folder));
+    const auto child = QDir(folder).filePath("keep.png");
+    QVERIFY(photo(child));
+    QVERIFY(!desktop::trashFile(folder).isEmpty());
+    QVERIFY(QFileInfo(child).isFile());
     QVERIFY(!desktop::trashFile(dir.filePath("absent.png")).isEmpty());
   }
   void windowNavigationAndScreenshot(){

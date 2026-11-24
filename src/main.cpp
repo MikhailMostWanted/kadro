@@ -38,32 +38,36 @@ int main(int argc,char** argv) {
 #endif
   Application app(argc,argv);
   QCoreApplication::setOrganizationName("Kadro"); QCoreApplication::setApplicationName("Kadro"); QCoreApplication::setApplicationVersion("0.1.0");
-  QApplication::setApplicationDisplayName("KADRO"); QApplication::setStyle("Fusion");
+  QApplication::setApplicationDisplayName("Wanted View"); QApplication::setStyle("Fusion");
   QImageReader::setAllocationLimit(128);
-  QCommandLineParser parser; parser.setApplicationDescription("KADRO — просмотр фотографий и видео"); parser.addHelpOption(); parser.addVersionOption(); parser.addPositionalArgument("file","Фото, видео или папка","[file]");
+  QCommandLineParser parser; parser.setApplicationDescription("Wanted View — просмотр фотографий и видео"); parser.addHelpOption(); parser.addVersionOption(); parser.addPositionalArgument("file","Фото, видео или папка","[file]");
   kadro::addDiagnosticOptions(parser);
   parser.process(app);
   if(parser.positionalArguments().size()>1)parser.showHelp(2);
   const QString path=parser.positionalArguments().isEmpty()?QString():QFileInfo(parser.positionalArguments().first()).absoluteFilePath();
-  std::unique_ptr<QTemporaryDir> smokeSettings;
-  QString settingsDirectory=parser.value("settings-dir");
-  if(parser.isSet("smoke-screenshot") && !parser.isSet("settings-dir")) {
-    smokeSettings=std::make_unique<QTemporaryDir>();
-    if(!smokeSettings->isValid())return 5;
-    settingsDirectory=smokeSettings->path();
-  }
-  if(parser.isSet("settings-dir") || smokeSettings) {
+  const bool diagnostic = kadro::diagnosticInstance(parser);
+  std::unique_ptr<QTemporaryDir> temporaryProfile;
+  if (diagnostic) {
+    QString settingsDirectory = parser.value("settings-dir");
+    if (!parser.isSet("settings-dir")) {
+      temporaryProfile = std::make_unique<QTemporaryDir>();
+      if (!temporaryProfile->isValid()) {
+        std::fprintf(stderr, "Wanted View: %s\n", qPrintable(temporaryProfile->errorString()));
+        return 5;
+      }
+      settingsDirectory = temporaryProfile->path();
+    }
     QString error;
-    if(!kadro::configureSettingsProfile(settingsDirectory,&error)) {
-      std::fprintf(stderr,"KADRO: %s\n",qPrintable(error));
+    if (!kadro::configureSettingsProfile(settingsDirectory, &error)) {
+      std::fprintf(stderr, "Wanted View: %s\n", qPrintable(error));
       return 5;
     }
   }
   kadro::SingleInstance instance;
-  if(!kadro::diagnosticInstance(parser)) {
+  if (!diagnostic) {
     QString error; int status=instance.start(path,&error);
     if(status==1)return 0;
-    if(status<0){QMessageBox::warning(nullptr,"KADRO",error);return 1;}
+    if(status<0){QMessageBox::warning(nullptr,app.applicationDisplayName(),error);return 1;}
   }
   kadro::Window window;
   app.open=[&window](const QString& file){window.openPath(file);window.show();window.raise();window.activateWindow();};

@@ -121,6 +121,12 @@ int main(int argc,char** argv) {
     const QString linked=temp.filePath("linked");require(QDir().mkpath(linked),"create symlink fixture");
     require(QFile::link(normal+"/system",linked+"/system"),"make only owned symlink");
     require(!kadro::configureSettingsProfile(linked,&error),"scope symlink cannot escape profile");destinationUnchanged();
+    const QString linkedIni = temp.filePath("linked-ini");
+    require(QDir().mkpath(linkedIni + "/user/Kadro"), "create owned INI path");
+    require(QFile::link(normalFiles.first(), linkedIni + "/user/Kadro/Kadro.ini"),
+            "create owned app INI link");
+    require(!kadro::configureSettingsProfile(linkedIni, &error), "redirected INI rejected");
+    destinationUnchanged();
     const QString readOnly=temp.filePath("readonly");require(QDir().mkpath(readOnly),"create readonly fixture");
     require(QFile::setPermissions(readOnly,QFile::ReadOwner|QFile::ExeOwner),"restrict own fixture permissions");
     const bool denied=!QFileInfo(readOnly).isWritable();
