@@ -210,7 +210,7 @@ private slots:
     }
     void errorStatesRecover() {
       QTemporaryDir dir;
-      const QString damaged = dir.filePath("broken.png");
+      const QString damaged = dir.filePath("broken.heic");
       QFile file(damaged);
       QVERIFY(file.open(QIODevice::WriteOnly));
       QCOMPARE(file.write("corrupt"), 7);
@@ -225,6 +225,10 @@ private slots:
       QCOMPARE(heading->text(), QString("Файл или папка недоступны."));
       window.openPath(damaged);
       QTRY_COMPARE(heading->text(), QString("Не удалось открыть изображение"));
+      const auto* body = window.findChild<QLabel*>("messageBody");
+      QVERIFY(body && body->text().contains("кодек"));
+      QTRY_VERIFY(heading->height() >= heading->heightForWidth(heading->width()));
+      QTRY_VERIFY(body->height() >= body->heightForWidth(body->width()));
       QVERIFY(!window.hasDecodedMedia());
       QTRY_VERIFY(!window.folderModel()->isScanning());
       window.navigate(1);

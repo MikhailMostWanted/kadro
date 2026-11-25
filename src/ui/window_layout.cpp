@@ -183,8 +183,7 @@ void Window::buildUi() {
   heading_->setObjectName("emptyHeading");
   heading_->setAlignment(Qt::AlignCenter);
   heading_->setWordWrap(true);
-  heading_->setMinimumWidth(372);
-  heading_->setMaximumWidth(432);
+  heading_->setFixedWidth(416);
   QFont headingFont = heading_->font();
   headingFont.setPointSizeF(qMax(22.0, headingFont.pointSizeF() * 1.8));
   headingFont.setWeight(QFont::DemiBold);
@@ -194,9 +193,8 @@ void Window::buildUi() {
   message_->setTextFormat(Qt::PlainText);
   message_->setAlignment(Qt::AlignCenter);
   message_->setWordWrap(true);
-  message_->setMinimumWidth(340);
-  message_->setMaximumWidth(432);
-  message_->setObjectName("muted");
+  message_->setFixedWidth(404);
+  message_->setObjectName("messageBody");
   empty->addWidget(message_, 0, Qt::AlignHCenter);
 
   messageActions_ = new QWidget(messagePage_);
@@ -320,6 +318,10 @@ void Window::showMessage(MessageState state, const QString& heading, const QStri
   }
   heading_->setText(heading);
   message_->setText(body);
+  // Horizontal centering can make the actual label narrower than the page.
+  // Reserve the height of the wrapped text at that label's width.
+  heading_->setMinimumHeight(heading_->heightForWidth(heading_->width()));
+  message_->setMinimumHeight(message_->heightForWidth(message_->width()));
   welcomeMark_->setVisible(state == MessageState::Welcome);
   messageActions_->setVisible(state != MessageState::Loading);
   stage_->setCurrentWidget(messagePage_);
@@ -404,8 +406,9 @@ void Window::applyTheme() {
     QWidget#topBar { border-bottom: 1px solid @border@; }
     QWidget#bottomBar, QWidget#videoBar, QStatusBar { border-top: 1px solid @border@; }
     QFrame#divider { background: @border@; }
+    QLabel, QListView, QPlainTextEdit, QComboBox { color: @text@; }
     QLabel#brand, QLabel#fileTitle { font-weight: 600; }
-    QLabel#muted, QStatusBar { color: @muted@; }
+    QLabel#muted, QLabel#messageBody, QStatusBar { color: @muted@; }
     QLabel#emptyHeading[error="true"] { color: @error@; }
     QWidget#segments { background: @surface_subtle@; border-radius: 12px; }
 
@@ -456,8 +459,9 @@ void Window::applyTheme() {
     QSlider::sub-page:horizontal { background: @action@; border-radius: 2px; }
     QSlider::handle:horizontal { width: 14px; margin: -5px 0; background: @text@; border-radius: 7px; }
     QSlider::handle:horizontal:disabled { background: @control_border@; }
-    QComboBox { border: 2px solid @control_border@; border-radius: 8px; padding: 4px 8px; }
+    QComboBox { background: @surface@; border: 2px solid @control_border@; border-radius: 8px; padding: 4px 8px; }
     QComboBox:focus { border-color: @focus@; }
+    QComboBox QAbstractItemView { background: @surface@; color: @text@; selection-background-color: @action@; selection-color: @on_action@; }
     QScrollBar:horizontal { height: 8px; background: @surface@; }
     QScrollBar::handle:horizontal { background: @control_border@; border-radius: 4px; min-width: 32px; }
     QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
