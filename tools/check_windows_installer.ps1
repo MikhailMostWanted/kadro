@@ -38,10 +38,32 @@ try {
         $defaultBefore = Get-ItemPropertyValue -LiteralPath $choice -Name ProgId -ErrorAction SilentlyContinue
         $env:KADRO_CI_INSTALLED_EXE = Join-Path $install 'bin\Kadro.exe'
         $previousQpa = $env:QT_QPA_PLATFORM
+        $probeLog = Join-Path $FixtureDir 'windows-native-probe.xml'
         try {
             $env:QT_QPA_PLATFORM = 'windows'
-            & (Resolve-Path -LiteralPath $AssociationProbe).Path windowsAssociation windowsTrashOnDisposableRunner
-            if ($LASTEXITCODE -ne 0) { throw 'Windows association or recycle-bin probe failed' }
+            $probeExecutable = (Resolve-Path -LiteralPath $AssociationProbe).Path
+            $probeArgs = 'windowsAssociation windowsTrashOnDisposableRunner -o "' + $probeLog + ',xunitxml"'
+            $probe = Start-Process -FilePath $probeExecutable -ArgumentList $probeArgs -PassThru
+            if (-not $probe.WaitForExit(30000)) {
+                Stop-Process -Id $probe.Id -ErrorAction SilentlyContinue
+                throw 'Windows native probe timed out'
+            }
+            if ($probe.ExitCode -ne 0 -or !(Test-Path -LiteralPath $probeLog)) {
+                throw "Windows native probe did not pass (exit $($probe.ExitCode)). See the XML artifact."
+            }
+            [xml]$result = Get-Content -LiteralPath $probeLog -Raw
+            $association = $result.testsuite.testcase | Where-Object name -eq 'windowsAssociation'
+            $trash = $result.testsuite.testcase | Where-Object name -eq 'windowsTrashOnDisposableRunner'
+            if (!$association -or $association.skipped -or !$trash) { throw 'Missing required results from the Windows native probe' }
+            if ($trash.skipped) {
+                Write-Output 'Recycle-bin move unavailable on this runner; the file was preserved'
+            } else {
+                Write-Output 'PASS synthetic file moved to the Windows Recycle Bin'
+            }
+            $command = (Get-Item -LiteralPath "$classes\Kadro.Media\shell\open\command").GetValue('')
+            if ($command -ne ('"' + $env:KADRO_CI_INSTALLED_EXE + '" "%1"')) {
+                throw 'The installed executable is missing from the Windows registration'
+            }
         } finally {
             $env:QT_QPA_PLATFORM = $previousQpa
             Remove-Item Env:KADRO_CI_INSTALLED_EXE
