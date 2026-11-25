@@ -9,14 +9,15 @@ ImageStore::ImageStore(int budgetMiB, int maxQueue, QObject* parent)
   connect(&watcher_, &QFutureWatcher<Decoded>::finished, this, [this] {
     const auto done = active_;
     auto value = watcher_.result();
-    if (imageKey(done.path,done.edge)!=done.key) { value.image={}; value.error="Файл изменился во время чтения. Откройте его ещё раз."; }
+    const bool unchanged = imageKey(done.path, done.edge) == done.key;
+    if (!unchanged) { value.image={}; value.error="Файл изменился во время чтения. Откройте его ещё раз."; }
     busy_ = false;
     // Never insert a stale file into the cache under its newer on-disk identity.
-    if (imageKey(done.path, done.edge) == done.key) {
+    if (unchanged) {
       int kib = int((value.image.sizeInBytes() + 1023) / 1024);
       cache_.insert(done.key, new Decoded(value), qMax(1, kib));
     }
-    emit ready(done.path, done.edge, value);
+    emit ready(done.path, done.edge, value, done.key);
     pump();
   });
 }
@@ -30,7 +31,11 @@ void ImageStore::clearPending() { queue_.clear(); }
 void ImageStore::request(const QString& path, int edge, bool urgent) {
   const auto key = imageKey(path, edge);
   if (urgent) queue_.clear();
-  if (const auto* hit = cache_.object(key)) { const auto copy = *hit; QTimer::singleShot(0,this,[this,path,edge,copy]{emit ready(path,edge,copy);}); return; }
+  if (const auto* hit = cache_.object(key)) {
+    const auto copy = *hit;
+    QTimer::singleShot(0, this, [this, path, edge, copy, key] { emit ready(path, edge, copy, key); });
+    return;
+  }
   if (busy_ && active_.key == key) return;
   for (const auto& job : queue_) if (job.key == key) return;
   if (int(queue_.size()) >= maxQueue_) {

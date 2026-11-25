@@ -8,6 +8,7 @@
 #include <QBuffer>
 #include <QFile>
 #include <QImageReader>
+#include <QMessageBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QPainter>
@@ -54,6 +55,8 @@ class UiTests : public QObject {
 private slots:
   void initTestCase(){
     QVERIFY(settings_.isValid());QCoreApplication::setOrganizationName("KadroTests");QCoreApplication::setApplicationName("KadroTests");
+      QApplication::setApplicationDisplayName("Wanted View");
+      QApplication::setStyle("Fusion");
     QString error;QVERIFY2(configureSettingsProfile(settings_.path(),&error),qPrintable(error));
     QImageReader::setAllocationLimit(128);
   }
@@ -73,7 +76,12 @@ private slots:
     model.scan(dir.path());QTRY_COMPARE(done.count(),1);QCOMPARE(model.rowCount(),4);
     filter.setKind(Kind::Photo);QCOMPARE(filter.rowCount(),3);QCOMPARE(filter.index(0,0).data().toString(),QString("IMG1.png"));QCOMPARE(filter.index(1,0).data().toString(),QString("IMG2.png"));
     filter.setKind(Kind::Video);QCOMPARE(filter.rowCount(),1);QCOMPARE(filter.index(0,0).data().toString(),QString("clip.mov"));
-    filter.setKind(Kind::Unknown);QCOMPARE(filter.rowCount(),4);
+      filter.setKind(Kind::Unknown);QCOMPARE(filter.rowCount(),4);
+      filter.setOrder(MediaFilter::Sort::Size);
+      QCOMPARE(filter.index(0, 0).data().toString(), QString("IMG1.png"));
+      filter.setOrder(MediaFilter::Sort::Name);
+      QCOMPARE(filter.index(0, 0).data().toString(), QString("clip.mov"));
+      QCOMPARE(filter.index(2, 0).data().toString(), QString("IMG2.png"));
   }
   void staleFolderScanIsIgnored(){
     QTemporaryDir first,second;for(int i=0;i<400;++i){QFile f(first.filePath(QString::number(i)+".jpg"));QVERIFY(f.open(QIODevice::WriteOnly));}
@@ -103,6 +111,45 @@ private slots:
     QVERIFY(QFileInfo(child).isFile());
     QVERIFY(!desktop::trashFile(dir.filePath("absent.png")).isEmpty());
   }
+#ifdef Q_OS_WIN
+    void windowsAssociation() {
+      const auto installed = qEnvironmentVariable("KADRO_CI_INSTALLED_EXE");
+      if (installed.isEmpty()) QSKIP("Requires the disposable Windows installer job");
+      QVERIFY(QFileInfo(installed).isFile());
+      QSettings classes("HKEY_CURRENT_USER\\Software\\Classes", QSettings::NativeFormat);
+      QSettings registered("HKEY_CURRENT_USER\\Software\\RegisteredApplications", QSettings::NativeFormat);
+      QSettings cap("HKEY_CURRENT_USER\\Software\\Kadro\\Capabilities", QSettings::NativeFormat);
+      QSettings choice("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.png\\UserChoice",
+                       QSettings::NativeFormat);
+      const auto currentDefault = choice.value("ProgId");
+      QVERIFY(!registered.contains("KADRO") && cap.allKeys().isEmpty());
+      QVERIFY(!classes.contains("Kadro.Media/shell/open/command/Default"));
+      QVERIFY(!classes.contains("Applications/Kadro.exe/shell/open/command/Default"));
+      QVERIFY(desktop::registerViewer(installed));
+      const QString executable = QDir::toNativeSeparators(installed);
+      const QString command = '"' + executable + "\" \"%1\"";
+      QCOMPARE(classes.value("Kadro.Media/shell/open/command/Default").toString(), command);
+      QCOMPARE(classes.value("Applications/Kadro.exe/shell/open/command/Default").toString(), command);
+      QCOMPARE(classes.value("Kadro.Media/DefaultIcon/Default").toString(), '"' + executable + "\",0");
+      QCOMPARE(registered.value("KADRO").toString(), QString("Software\\Kadro\\Capabilities"));
+      QCOMPARE(cap.value("FileAssociations/.png").toString(), QString("Kadro.Media"));
+      QCOMPARE(cap.value("FileAssociations/.mp4").toString(), QString("Kadro.Media"));
+      QCOMPARE(choice.value("ProgId"), currentDefault);
+    }
+    void windowsTrashOnDisposableRunner() {
+      if (!qEnvironmentVariableIsSet("KADRO_CI_INSTALLED_EXE"))
+        QSKIP("Requires the disposable Windows installer job");
+      QTemporaryDir dir;
+      const auto fixture = dir.filePath("Wanted View recycle bin fixture.png");
+      QVERIFY(photo(fixture));
+      const QString error = desktop::trashFile(fixture);
+      if (!error.isEmpty()) {
+        QVERIFY(QImageReader(fixture).canRead());
+        QSKIP("The runner did not accept a recycle-bin move. The fixture was preserved.");
+      }
+      QVERIFY(!QFileInfo::exists(fixture));
+    }
+#endif
   void windowNavigationAndScreenshot(){
     QTemporaryDir dir;QVERIFY(photo(dir.filePath("Кадр1.png"),QSize(1600,900)));QVERIFY(photo(dir.filePath("Кадр2.png"),QSize(600,800)));
     Window window;window.show();window.openPath(dir.filePath("Кадр1.png"));
@@ -116,6 +163,123 @@ private slots:
     QFile::remove("test-artifacts/photo.png");QVERIFY(QFile::copy(dir.filePath("Кадр1.png"),"test-artifacts/photo.png"));
     window.close();
   }
+    void keyboardAndNarrowWindow() {
+      QTemporaryDir dir;
+      const QString first = dir.filePath(QString(140, QChar('a')) + ".png");
+      const QString second = dir.filePath("2.png");
+      QVERIFY(photo(first));
+      QVERIFY(photo(second));
+      QSettings().setValue("view/filmstrip", false);
+      QSettings().setValue("view/info", false);
+      Window window;
+      window.resize(720, 480);
+      window.show();
+      window.activateWindow();
+      window.setFocus();
+      window.openPath(first);
+      QTRY_VERIFY(window.hasDecodedMedia() && !window.folderModel()->isScanning());
+      QTRY_COMPARE(window.width(), 720);
+      auto* title = window.findChild<QLabel*>("fileTitle");
+      QVERIFY(title);
+      QCOMPARE(title->accessibleName(), QFileInfo(first).fileName());
+      QVERIFY(title->text().contains(QChar(0x2026)));
+      auto* header = window.findChild<QWidget*>("topBar");
+      QVERIFY(header && header->isVisible());
+      QTest::keyClick(&window, Qt::Key_Tab);
+      QTRY_VERIFY(window.focusWidget() && window.focusWidget() != &window);
+      QVERIFY(header->isVisible());
+      QTest::keyClick(window.focusWidget(), Qt::Key_H);
+      QTRY_VERIFY(!header->isVisible());
+      QTest::keyClick(&window, Qt::Key_Escape);
+      QTRY_VERIFY(header->isVisible());
+      QTest::keyClick(&window, Qt::Key_Right);
+      QCOMPARE(window.currentPath(), second);
+      QTRY_VERIFY(window.hasDecodedMedia());
+      QTest::keyClick(&window, Qt::Key_T);
+      auto* strip = window.findChild<QListView*>("filmstrip");
+      QTRY_VERIFY(strip && strip->isVisible());
+      strip->setFocus();
+      QTest::keyClick(strip, Qt::Key_Right);
+      QTRY_COMPARE(window.currentPath(), first);
+      QTRY_VERIFY(window.hasDecodedMedia());
+      QDir().mkpath("test-artifacts");
+      QVERIFY(window.grab().save("test-artifacts/viewer-compact.png"));
+      window.close();
+      QSettings().remove("window/geometry");
+      QSettings().remove("view/filmstrip");
+    }
+    void errorStatesRecover() {
+      QTemporaryDir dir;
+      const QString damaged = dir.filePath("broken.heic");
+      QFile file(damaged);
+      QVERIFY(file.open(QIODevice::WriteOnly));
+      QCOMPARE(file.write("corrupt"), 7);
+      file.close();
+      const auto good = dir.filePath("valid.png");
+      QVERIFY(photo(good));
+      Window window;
+      window.show();
+      auto* heading = window.findChild<QLabel*>("emptyHeading");
+      QVERIFY(heading && heading->isVisible());
+      window.openPath(dir.filePath("missing.png"));
+      QCOMPARE(heading->text(), QString("Файл или папка недоступны."));
+      window.openPath(damaged);
+      QTRY_COMPARE(heading->text(), QString("Не удалось открыть изображение"));
+      const auto* body = window.findChild<QLabel*>("messageBody");
+      QVERIFY(body && body->text().contains("кодек"));
+      QTRY_VERIFY(heading->height() >= heading->heightForWidth(heading->width()));
+      QTRY_VERIFY(body->height() >= body->heightForWidth(body->width()));
+      QVERIFY(!window.hasDecodedMedia());
+      QTRY_VERIFY(!window.folderModel()->isScanning());
+      window.navigate(1);
+      QTRY_COMPARE(window.currentPath(), good);
+      QTRY_VERIFY(window.hasDecodedMedia());
+      QVERIFY(!heading->isVisible());
+    }
+    void trashDialogCancelsAndRejectsReplacement() {
+      QTemporaryDir dir;
+      const QString file = dir.filePath("Trash test.png");
+      const QString original = dir.filePath("Original copy.png");
+      QVERIFY(photo(file));
+      Window window;
+      window.show();
+      window.openPath(file);
+      QTRY_VERIFY(window.hasDecodedMedia() && !window.folderModel()->isScanning());
+      QAction* trash = nullptr;
+      for (auto* action : window.actions()) {
+        if (action->text() == "В корзину…") trash = action;
+      }
+      QVERIFY(trash);
+      bool cancelledByDefault = false;
+      QTimer::singleShot(0, &window, [&] {
+        if (auto* dialog = window.findChild<QMessageBox*>()) {
+          cancelledByDefault = dialog->defaultButton() && dialog->defaultButton()->text() == "Отмена";
+          if (cancelledByDefault) QTest::keyClick(dialog, Qt::Key_Return);
+          else dialog->reject();
+        }
+      });
+      trash->trigger();
+      QVERIFY(cancelledByDefault);
+      QVERIFY(QFileInfo::exists(file));
+
+      bool replaced = false;
+      QTimer::singleShot(0, &window, [&] {
+        if (auto* dialog = window.findChild<QMessageBox*>()) {
+          replaced = QFile::rename(file, original) && photo(file, QSize(320, 180));
+          for (auto* control : dialog->buttons()) {
+            if (replaced && dialog->buttonRole(control) == QMessageBox::AcceptRole) {
+              control->click();
+              return;
+            }
+          }
+          dialog->reject();
+        }
+      });
+      trash->trigger();
+      QVERIFY(replaced);
+      QVERIFY(QFileInfo::exists(original));
+      QCOMPARE(QImageReader(file).size(), QSize(320, 180));
+    }
   void actualVideoPlayback(){
     QTemporaryDir dir;auto path=dir.filePath("sample.avi");QVERIFY(makeVideo(path));
     QDir().mkpath("test-artifacts");QFile::remove("test-artifacts/video.avi");QVERIFY(QFile::copy(path,"test-artifacts/video.avi"));
@@ -125,6 +289,31 @@ private slots:
     pane.open(path);QTRY_VERIFY_WITH_TIMEOUT(frame,15000);QVERIFY(pane.player()->error()==QMediaPlayer::NoError);
     pane.toggle();QCOMPARE(pane.player()->playbackState(),QMediaPlayer::PausedState);pane.seekRelative(300);pane.stop();QCOMPARE(pane.player()->source(),QUrl());
   }
+    void keyboardSeekAndForgottenPosition() {
+      QTemporaryDir dir;
+      const auto file = dir.filePath("seek.avi");
+      QVERIFY(makeVideo(file, 60));
+      QSettings().setValue("video/resume", true);
+      QSettings().remove("video/positions");
+      VideoPane pane;
+      pane.show();
+      pane.open(file);
+      QTRY_VERIFY(pane.player()->isSeekable());
+      pane.player()->pause();
+      QSlider* seek = nullptr;
+      for (auto* slider : pane.findChildren<QSlider*>()) {
+        if (slider->accessibleName() == "Позиция видео") seek = slider;
+      }
+      QVERIFY(seek && seek->isEnabled());
+      QTest::keyClick(seek, Qt::Key_Home);
+      QTRY_COMPARE(pane.player()->position(), qint64(0));
+      QTest::keyClick(seek, Qt::Key_PageUp);
+      QTRY_COMPARE(pane.player()->position(), qint64(1200));
+      pane.player()->setPosition(5000);
+      pane.forgetPosition();
+      pane.stop();
+      QVERIFY(!QSettings().contains("video/positions"));
+    }
   void resumeTwelveSecondVideoAtFiveSeconds(){
     QTemporaryDir dir;const auto path=dir.filePath("resume12.avi");QVERIFY(makeVideo(path,60));
     QSettings settings;settings.setValue("video/resume",true);settings.setValue("video/positions",QByteArray("{}"));settings.sync();

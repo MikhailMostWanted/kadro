@@ -6,7 +6,7 @@ bool reveal(const QString& path);
 bool copyFile(const QString& path);
 QString renameFile(const QString& path,const QString& newName,QString* resultingPath);
 QString trashFile(const QString& path);
-bool registerViewer();
+bool registerViewer(const QString& applicationPath);
 QString defaultAppInstructions();
 #ifdef Q_OS_WIN
 QImage readNativeImage(const QString& path,int edge,QSize* original);

@@ -23,6 +23,7 @@ signals:
 protected:
   void resizeEvent(QResizeEvent*) override;
   void wheelEvent(QWheelEvent*) override;
+  void mousePressEvent(QMouseEvent*) override;
   void mouseDoubleClickEvent(QMouseEvent*) override;
 private:
   void notifyZoom();
