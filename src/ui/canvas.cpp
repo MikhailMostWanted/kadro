@@ -77,4 +77,8 @@ void Canvas::wheelEvent(QWheelEvent* e) {
   zoomBy(std::pow(1.18,delta)); e->accept();
 }
 void Canvas::mouseDoubleClickEvent(QMouseEvent* e) { if (e->button()==Qt::LeftButton) emit fullScreenRequested(); else QGraphicsView::mouseDoubleClickEvent(e); }
+void Canvas::mousePressEvent(QMouseEvent* event) {
+  window()->setFocus(Qt::MouseFocusReason);
+  QGraphicsView::mousePressEvent(event);
+}
 }

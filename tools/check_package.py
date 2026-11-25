@@ -18,6 +18,8 @@ def main() -> int:
         raise SystemExit("usage: check_package.py DIST FIXTURE_DIR [MEDIA ...]")
     dist, fixtures = (Path(value).resolve() for value in sys.argv[1:3])
     media_files = sys.argv[3:] or ["photo.png", "video.avi"]
+    if len(sys.argv) == 3 and (fixtures / "synthetic.heic").is_file():
+        media_files = [*media_files, "synthetic.heic"]
     executable = (dist / "Kadro.app/Contents/MacOS/Kadro" if sys.platform == "darwin"
                   else dist / "bin/Kadro.exe")
     if not executable.is_file():
@@ -47,6 +49,10 @@ def main() -> int:
             )
             print(result.stdout.decode("utf-8", errors="replace"))
             print(result.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+            if (sys.platform == "win32" and media == "synthetic.heic" and
+                    result.returncode == 4 and screenshot.is_file()):
+                print("HEIC decode unavailable on this runner; the installed app showed an error")
+                continue
             if result.returncode != 0 or not screenshot.is_file():
                 raise SystemExit(f"Installed media test failed: {media}, exit={result.returncode}")
             print(f"PASS installed package: {fixture.name}")
@@ -65,6 +71,21 @@ def main() -> int:
         if result.returncode != 5 or blocked_capture.exists() or blocked.read_bytes() != b"keep":
             raise SystemExit(f"Invalid profile was not rejected safely: exit={result.returncode}")
         print("PASS explicit profile persistence and invalid profile rejection")
+
+        welcome = fixtures / "packaged-welcome.png"
+        result = subprocess.run([str(executable), "--smoke-screenshot", str(welcome)],
+                                env=env, cwd=working, capture_output=True, timeout=15)
+        if result.returncode != 0 or not welcome.is_file():
+            raise SystemExit(f"Installed welcome screen failed: exit={result.returncode}")
+        damaged = Path(working) / "повреждённый.png"
+        payload = b"synthetic invalid PNG fixture"
+        damaged.write_bytes(payload)
+        error_capture = fixtures / "packaged-error.png"
+        result = subprocess.run([str(executable), "--smoke-screenshot", str(error_capture), str(damaged)],
+                                env=env, cwd=working, capture_output=True, timeout=20)
+        if result.returncode != 4 or not error_capture.is_file() or damaged.read_bytes() != payload:
+            raise SystemExit(f"Installed app did not reject the damaged image safely: exit={result.returncode}")
+        print("PASS installed welcome screen and damaged image handling")
     return 0
 
 

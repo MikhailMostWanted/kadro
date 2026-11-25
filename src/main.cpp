@@ -6,6 +6,7 @@
 #include <QCommandLineParser>
 #include <QElapsedTimer>
 #include <QFileOpenEvent>
+#include <QIcon>
 #include <QImageReader>
 #include <QMessageBox>
 #include <QTimer>
@@ -21,11 +22,16 @@ class Application final : public QApplication {
 public:
   using QApplication::QApplication;
   std::function<void(QString)> open;
+  QString pendingFile;
 protected:
   bool event(QEvent* e) override {
     if(e->type()==QEvent::FileOpen){
       auto* f=static_cast<QFileOpenEvent*>(e);
-      if(open && f->url().isLocalFile())open(f->file());
+      const QString path = f->url().toLocalFile();
+      if (!path.isEmpty()) {
+        if (open) open(path);
+        else pendingFile = path;
+      }
       return true;
     }
     return QApplication::event(e);
@@ -37,14 +43,16 @@ int main(int argc,char** argv) {
   struct Uninitialize { HRESULT hr; ~Uninitialize(){if(SUCCEEDED(hr))CoUninitialize();} } uninitialize{com};
 #endif
   Application app(argc,argv);
-  QCoreApplication::setOrganizationName("Kadro"); QCoreApplication::setApplicationName("Kadro"); QCoreApplication::setApplicationVersion("0.1.0");
+  QCoreApplication::setOrganizationName("Kadro"); QCoreApplication::setApplicationName("Kadro"); QCoreApplication::setApplicationVersion(KADRO_VERSION);
   QApplication::setApplicationDisplayName("Wanted View"); QApplication::setStyle("Fusion");
+  QApplication::setWindowIcon(QIcon(":/wanted-view/wanted-view.png"));
   QImageReader::setAllocationLimit(128);
   QCommandLineParser parser; parser.setApplicationDescription("Wanted View — просмотр фотографий и видео"); parser.addHelpOption(); parser.addVersionOption(); parser.addPositionalArgument("file","Фото, видео или папка","[file]");
   kadro::addDiagnosticOptions(parser);
   parser.process(app);
   if(parser.positionalArguments().size()>1)parser.showHelp(2);
-  const QString path=parser.positionalArguments().isEmpty()?QString():QFileInfo(parser.positionalArguments().first()).absoluteFilePath();
+  const QString path = parser.positionalArguments().isEmpty() ? app.pendingFile
+    : QFileInfo(parser.positionalArguments().first()).absoluteFilePath();
   const bool diagnostic = kadro::diagnosticInstance(parser);
   std::unique_ptr<QTemporaryDir> temporaryProfile;
   if (diagnostic) {
@@ -80,8 +88,8 @@ int main(int argc,char** argv) {
     auto* probe=new QTimer(&window); probe->setInterval(100);
     QObject::connect(probe,&QTimer::timeout,&window,[&window,&app,&parser,&path,&smokeElapsed]{
       // A screenshot of an error/empty page is not a successful media smoke test.
-      if(!path.isEmpty() && !window.hasDecodedMedia()) {
-        if(smokeElapsed.elapsed()<15000)return;
+        if(!path.isEmpty() && !window.hasDecodedMedia()) {
+          if(!window.hasOpenError() && smokeElapsed.elapsed()<15000)return;
         window.grab().save(parser.value("smoke-screenshot"));app.exit(4);return;
       }
       bool ok=window.grab().save(parser.value("smoke-screenshot"));app.exit(ok?0:3);

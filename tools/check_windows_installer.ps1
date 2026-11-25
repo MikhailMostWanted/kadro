@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Setup,
-    [Parameter(Mandatory = $true)][string]$FixtureDir
+    [Parameter(Mandatory = $true)][string]$FixtureDir,
+    [string]$AssociationProbe
 )
 $ErrorActionPreference = 'Stop'
 $Setup = (Resolve-Path -LiteralPath $Setup).Path
@@ -8,6 +9,10 @@ $FixtureDir = (Resolve-Path -LiteralPath $FixtureDir).Path
 $root = Join-Path ([System.IO.Path]::GetTempPath()) ("kadro-install-" + [guid]::NewGuid().ToString('N'))
 $install = Join-Path $root 'Проверка установки'
 $identity = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Kadro_is1'
+$classes = 'HKCU:\Software\Classes'
+$capabilities = 'HKCU:\Software\Kadro\Capabilities'
+$registered = 'HKCU:\Software\RegisteredApplications'
+$choice = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.png\UserChoice'
 New-Item -ItemType Directory -Path $root | Out-Null
 
 function Invoke-Installer($File, $Arguments) {
@@ -28,6 +33,21 @@ try {
     python "${PSScriptRoot}\check_package.py" $install $FixtureDir
     if ($LASTEXITCODE -ne 0) { throw 'Installed app smoke failed' }
 
+    if ($AssociationProbe) {
+        if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Registry probe requires a disposable GitHub Actions runner' }
+        $defaultBefore = Get-ItemPropertyValue -LiteralPath $choice -Name ProgId -ErrorAction SilentlyContinue
+        $env:KADRO_CI_INSTALLED_EXE = Join-Path $install 'bin\Kadro.exe'
+        $previousQpa = $env:QT_QPA_PLATFORM
+        try {
+            $env:QT_QPA_PLATFORM = 'windows'
+            & (Resolve-Path -LiteralPath $AssociationProbe).Path windowsAssociation windowsTrashOnDisposableRunner
+            if ($LASTEXITCODE -ne 0) { throw 'Windows association or recycle-bin probe failed' }
+        } finally {
+            $env:QT_QPA_PLATFORM = $previousQpa
+            Remove-Item Env:KADRO_CI_INSTALLED_EXE
+        }
+    }
+
     $uninstaller = Get-ChildItem -LiteralPath $install -Filter 'unins*.exe' | Select-Object -First 1
     if (!$uninstaller) { throw 'Missing uninstaller' }
     Invoke-Installer $uninstaller.FullName '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART'
@@ -39,6 +59,20 @@ try {
     if (Test-Path -LiteralPath $identity) { throw 'Uninstall entry was retained' }
     if (Test-Path -LiteralPath (Join-Path $install 'bin\Kadro.exe')) { throw 'Installed executable was retained' }
     if ((Get-Content -LiteralPath $marker) -ne 'owned test fixture') { throw 'Uninstall modified an untracked file' }
+    if ($AssociationProbe) {
+        foreach ($key in @("$classes\Kadro.Media", "$classes\Applications\Kadro.exe", $capabilities)) {
+            if (Test-Path -LiteralPath $key) { throw "An owned association key was retained: $key" }
+        }
+        if (Get-ItemProperty -LiteralPath $registered -Name 'KADRO' -ErrorAction SilentlyContinue) {
+            throw 'The owned RegisteredApplications value was retained'
+        }
+        if (Get-ItemProperty -LiteralPath "$classes\.png\OpenWithProgids" -Name 'Kadro.Media' -ErrorAction SilentlyContinue) {
+            throw 'The owned PNG OpenWith value was retained'
+        }
+        $defaultAfter = Get-ItemPropertyValue -LiteralPath $choice -Name ProgId -ErrorAction SilentlyContinue
+        if ($defaultAfter -ne $defaultBefore) { throw 'The selected PNG application was modified' }
+        Write-Output 'PASS explicit registration and uninstall through the same installed path; UserChoice preserved'
+    }
     Write-Output 'PASS Windows per-user install, installed app smoke, uninstall and untracked file preservation'
 } finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

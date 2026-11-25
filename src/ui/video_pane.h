@@ -16,6 +16,8 @@ public:
   void stop();
   void toggle();
   void seekRelative(qint64 milliseconds);
+  void forgetPosition();
+  void setControlsVisible(bool visible);
   QString details() const;
   QMediaPlayer* player() const { return player_; }
 signals:
@@ -26,10 +28,12 @@ protected:
   bool eventFilter(QObject*,QEvent*) override;
 private:
   void savePosition();
+  void restorePosition();
   void updateTime();
   QMediaPlayer* player_;
   QAudioOutput* audio_;
   QVideoWidget* surface_;
+  QWidget* controls_;
   QPushButton* play_;
   QSlider* seek_;
   QLabel* time_;

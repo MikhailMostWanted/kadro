@@ -63,7 +63,11 @@ jobs:
         run: ctest --test-dir build --output-on-failure --output-junit results.xml
       - name: Package runtime
         if: runner.os != 'Linux'
-        run: cmake --install build --prefix "$GITHUB_WORKSPACE/dist" --config Release
+        run: |
+          cmake --install build --prefix "$GITHUB_WORKSPACE/dist" --config Release
+          python tools/runtime_inventory.py dist
+          cp dist/licenses/runtime.json build/test-artifacts/runtime.json
+          cp tests/fixtures/synthetic.heic build/test-artifacts/synthetic.heic
       - name: Create and check macOS disk image
         if: runner.os == 'macOS'
         run: |
@@ -74,6 +78,7 @@ jobs:
           hdiutil attach WantedView-macOS-universal-RC.dmg -readonly -nobrowse -mountpoint "$work/mount"
           trap 'hdiutil detach "$work/mount"' EXIT
           ditto "$work/mount/Kadro.app" "$work/installed/Kadro.app"
+          test -s "$work/mount/licenses/runtime.json"
           arches=" $(lipo -archs "$work/installed/Kadro.app/Contents/MacOS/Kadro") "
           [[ "$arches" == *" arm64 "* && "$arches" == *" x86_64 "* ]]
           codesign --verify --deep --strict "$work/installed/Kadro.app"
@@ -87,7 +92,8 @@ jobs:
           $version = (Select-String -LiteralPath CMakeLists.txt -Pattern '^project\(Kadro VERSION ([0-9.]+) ').Matches[0].Groups[1].Value
           & $iscc "/DStageDir=$PWD\dist" "/DProductVersion=$version" "/O$PWD" packaging/wanted-view.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC returned $LASTEXITCODE" }
-          ./tools/check_windows_installer.ps1 -Setup WantedView-Windows-x64-RC.exe -FixtureDir build/test-artifacts
+          Get-AuthenticodeSignature -LiteralPath WantedView-Windows-x64-RC.exe | Select-Object Status
+          ./tools/check_windows_installer.ps1 -Setup WantedView-Windows-x64-RC.exe -FixtureDir build/test-artifacts -AssociationProbe build/kadro_ui_tests.exe
       - name: Upload macOS disk image
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4

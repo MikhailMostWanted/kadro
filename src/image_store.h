@@ -19,7 +19,7 @@ public:
   int queuedCount() const { return int(queue_.size()); }
   int cacheCost() const { return cache_.totalCost(); }
 signals:
-  void ready(const QString& path, int edge, const kadro::Decoded& decoded);
+  void ready(const QString& path, int edge, const kadro::Decoded& decoded, const QString& key);
 private:
   struct Job { QString path, key; int edge; };
   void pump();

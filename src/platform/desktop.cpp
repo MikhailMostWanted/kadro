@@ -59,16 +59,21 @@ QString trashFile(const QString& path) {
   if (!file.moveToTrash()) return "Не удалось переместить файл в корзину: "+file.errorString()+" Оригинал оставлен на месте.";
   return {};
 }
-bool registerViewer() {
+bool registerViewer(const QString& applicationPath) {
 #ifdef Q_OS_WIN
-  const QString exe=QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+  const QFileInfo application(applicationPath);
+  if (!application.isAbsolute() || !application.isFile()) return false;
+  const QString exe=QDir::toNativeSeparators(application.absoluteFilePath());
   const QString command='"'+exe+"\" \"%1\"";
+  const QString icon = '"' + exe + "\",0";
   QSettings classes("HKEY_CURRENT_USER\\Software\\Classes",QSettings::NativeFormat);
   const QString displayName = QApplication::applicationDisplayName();
   classes.setValue("Kadro.Media/Default","Медиафайл " + displayName);
   classes.setValue("Kadro.Media/shell/open/command/Default",command);
+  classes.setValue("Kadro.Media/DefaultIcon/Default", icon);
   classes.setValue("Applications/Kadro.exe/FriendlyAppName",displayName);
   classes.setValue("Applications/Kadro.exe/shell/open/command/Default",command);
+  classes.setValue("Applications/Kadro.exe/DefaultIcon/Default", icon);
   QSettings cap("HKEY_CURRENT_USER\\Software\\Kadro\\Capabilities",QSettings::NativeFormat);
   cap.setValue("ApplicationName",displayName); cap.setValue("ApplicationDescription","Просмотр фотографий и видео");
   const QStringList extensions={"jpg","jpeg","png","gif","bmp","webp","tif","tiff","heic","heif","avif","ico","mp4","m4v","mov","mkv","webm","avi","wmv","mpg","mpeg","mts","m2ts","3gp"};
@@ -83,6 +88,7 @@ bool registerViewer() {
   SHChangeNotify(SHCNE_ASSOCCHANGED,SHCNF_IDLIST,nullptr,nullptr);
   return classes.status()==QSettings::NoError && cap.status()==QSettings::NoError && registered.status()==QSettings::NoError;
 #else
+  Q_UNUSED(applicationPath);
   return true;
 #endif
 }

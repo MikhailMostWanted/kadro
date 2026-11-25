@@ -16,6 +16,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 OutputBaseFilename=WantedView-Windows-x64-RC
+SetupIconFile=icons\wanted-view.ico
 UninstallDisplayName=Wanted View
 UninstallDisplayIcon={app}\bin\Kadro.exe
 WizardStyle=modern

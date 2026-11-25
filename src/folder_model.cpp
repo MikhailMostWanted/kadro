@@ -69,9 +69,18 @@ void FolderModel::scan(const QString& folder) {
     return {std::move(entries),{}};
   }));
 }
-MediaFilter::MediaFilter(QObject* parent) : QSortFilterProxyModel(parent) { setDynamicSortFilter(true); sort(0); }
+MediaFilter::MediaFilter(QObject* parent) : QSortFilterProxyModel(parent) { setDynamicSortFilter(true); }
 void MediaFilter::setKind(Kind kind) { kind_ = kind; invalidateFilter(); }
-void MediaFilter::setOrder(Sort value) { order_ = value; invalidate(); sort(0); }
+void MediaFilter::setOrder(Sort value) {
+  if (order_ == value) return;
+  order_ = value;
+  if (order_ == Sort::Name) {
+    sort(-1);
+  } else {
+    invalidate();
+    sort(0);
+  }
+}
 bool MediaFilter::filterAcceptsRow(int row,const QModelIndex& parent) const {
   return kind_ == Kind::Unknown || sourceModel()->index(row,0,parent).data(FolderModel::KindRole).toInt() == int(kind_);
 }
@@ -81,6 +90,7 @@ bool MediaFilter::lessThan(const QModelIndex& a,const QModelIndex& b) const {
     auto x = a.data(role).toLongLong(), y = b.data(role).toLongLong();
     if (x != y) return order_ == Sort::Oldest ? x < y : x > y;
   }
-  return naturalLess(a.data().toString().toStdString(),b.data().toString().toStdString());
+  // The source model is already naturally sorted in the scanning worker.
+  return a.row() < b.row();
 }
 }

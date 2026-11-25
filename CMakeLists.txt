@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
-project(Kadro VERSION 0.1.0 LANGUAGES CXX)
+project(Kadro VERSION 0.1.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(KADRO_BUILD_APP "Build the desktop application" ON)
+set(KADRO_PREVIEW_KIT "" CACHE PATH "Path to the authorized WANTED 1.0.0 kit for a private local build")
 include(CTest)
 add_library(kadro_core src/core/media.cpp)
 target_include_directories(kadro_core PUBLIC src)
@@ -24,16 +25,33 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Concurrent Network Multimedia M
 qt_standard_project_setup()
 add_library(kadro_ui STATIC
   src/decoder.cpp src/image_store.cpp src/folder_model.cpp
-  src/ui/canvas.cpp src/ui/video_pane.cpp src/ui/window.cpp src/ui/window_actions.cpp
+  src/ui/canvas.cpp src/ui/video_pane.cpp src/ui/window.cpp src/ui/window_actions.cpp src/ui/window_layout.cpp
   src/platform/desktop.cpp src/platform/single_instance.cpp
 )
 target_include_directories(kadro_ui PUBLIC src)
 target_link_libraries(kadro_ui PUBLIC kadro_core Qt6::Widgets Qt6::Concurrent Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets)
+qt_add_resources(kadro_ui view_icon
+  PREFIX "/wanted-view" BASE "packaging/icons" FILES "packaging/icons/wanted-view.png")
+
+if(KADRO_PREVIEW_KIT)
+  include(cmake/PreviewBrand.cmake)
+endif()
+
 if(WIN32)
   target_link_libraries(kadro_ui PRIVATE shell32 ole32 windowscodecs)
 endif()
 qt_add_executable(Kadro WIN32 MACOSX_BUNDLE src/main.cpp)
 target_link_libraries(Kadro PRIVATE kadro_ui)
+target_compile_definitions(Kadro PRIVATE KADRO_VERSION="${PROJECT_VERSION}")
+if(APPLE)
+  set(app_icon "packaging/icons/WantedView.icns")
+  set_source_files_properties("${app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  target_sources(Kadro PRIVATE "${app_icon}")
+elseif(WIN32)
+  enable_language(RC)
+  target_include_directories(Kadro PRIVATE packaging)
+  target_sources(Kadro PRIVATE packaging/wanted-view.rc)
+endif()
 set_target_properties(Kadro PROPERTIES
   MACOSX_BUNDLE_BUNDLE_NAME "KADRO"
   MACOSX_BUNDLE_GUI_IDENTIFIER "app.kadro.viewer"
@@ -61,6 +79,11 @@ install(TARGETS Kadro BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_B
 install(FILES README.md LICENSE THIRD_PARTY.md DESTINATION .)
 install(FILES docs/INSTALL.md DESTINATION docs)
 if(APPLE OR WIN32)
+  install(DIRECTORY packaging/licenses/ DESTINATION licenses)
+  get_filename_component(qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
+  foreach(module qtbase qtsvg qtimageformats qtmultimedia)
+    install(FILES "${qt_prefix}/sbom/${module}-${Qt6_VERSION}.spdx.json" DESTINATION licenses/sbom OPTIONAL)
+  endforeach()
   if(APPLE AND Qt6_VERSION VERSION_GREATER_EQUAL 6.7)
     # Seal the bundle after macdeployqt changes the executable and plugins.
     # Developer ID signing and notarization belong to the release process.

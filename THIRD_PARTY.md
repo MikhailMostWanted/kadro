@@ -6,14 +6,15 @@ Qt используется динамически. У Qt есть коммер�
 
 Qt Multimedia может поставляться с FFmpeg. Состав и лицензии FFmpeg зависят от конфигурации конкретных бинарников. Не заменять официальный комплект случайной GPL-сборкой без пересмотра условий распространения. Системные HEIF-кодеки Windows не включаются в архив приложения и не скачиваются автоматически.
 
-Это перечень зависимостей, **не заключение о готовности лицензирования публичного релиза**. Публичная поставка блокируется до сбора точных текстов лицензий и notices именно тех библиотек, которые реально попали в пакет. Лицензионные тексты зависимостей нельзя заменять одной этой запиской.
+Пакет содержит полные тексты LGPL 3.0 и GPL 3.0 из Qt 6.8.3, а также LGPL 2.1 из FFmpeg 7.1. Файл `licenses/runtime.json` даёт список нативных бинарников и их SHA-256. В `licenses/sbom` помещаются SPDX-описи модулей из установленного Qt SDK, если он их предоставил.
+
+Перед внешней поставкой нужно сверить точные исходники, параметры сборки, тексты лицензий и уведомления всех библиотек из фактического пакета. Отдельно требуется разрешение на распространение сборок с общим знаком WANTED. Функциональная иконка Wanted View создана для приложения.
 
 Официальные источники для проверки:
 
-- Qt: https://doc.qt.io/qt-6/licensing.html
-- Qt Image Formats: https://doc.qt.io/qt-6/qtimageformats-index.html
-- Qt Multimedia: https://doc.qt.io/qt-6/qtmultimedia-index.html
-- FFmpeg: https://ffmpeg.org/legal.html
-- Microsoft WIC: https://learn.microsoft.com/en-us/windows/win32/wic/-wic-about-windows-imaging-codec
+- [Лицензирование Qt 6.8](https://doc.qt.io/qt-6.8/licensing.html), [тексты лицензий в Qt Base 6.8.3](https://github.com/qt/qtbase/tree/v6.8.3/LICENSES)
+- [Qt Image Formats](https://doc.qt.io/qt-6.8/qtimageformats-index.html), [Qt Multimedia](https://doc.qt.io/qt-6.8/qtmultimedia-index.html)
+- [Условия FFmpeg](https://ffmpeg.org/legal.html), [текст LGPL в исходниках FFmpeg 7.1](https://github.com/FFmpeg/FFmpeg/blob/n7.1/COPYING.LGPLv2.1)
+- [Windows Imaging Component](https://learn.microsoft.com/en-us/windows/win32/wic/-wic-about-windows-imaging-codec)
 
-В репозитории нет заимствованных изображений и шрифтов. Графика тестового кадра и MJPEG AVI создаётся кодом теста; это технические фикстуры, не пользовательские фотографии.
+Кадры для PNG и MJPEG AVI создаёт тестовый код. HEIC-фикстура закодирована из синтетического растра. [Происхождение HEIC](tests/fixtures/README.md)

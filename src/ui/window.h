@@ -13,7 +13,11 @@
 #include <QTimer>
 #include <QVideoFrame>
 #include <QVideoSink>
+class QPushButton;
+
 namespace kadro {
+class FileLabel;
+
 class Window : public QMainWindow {
   Q_OBJECT
 public:
@@ -29,19 +33,26 @@ public:
     return (canvas_ && stage_->currentWidget()==canvas_ && canvas_->hasImage()) ||
       (video_ && stage_->currentWidget()==video_ && video_->player()->videoSink() && video_->player()->videoSink()->videoFrame().isValid());
   }
+  bool hasOpenError() const {
+    return stage_->currentWidget() == messagePage_ && messageState_ == MessageState::Error;
+  }
 protected:
   void dragEnterEvent(QDragEnterEvent*) override;
   void dropEvent(QDropEvent*) override;
   void closeEvent(QCloseEvent*) override;
+  void keyPressEvent(QKeyEvent*) override;
+  void resizeEvent(QResizeEvent*) override;
 private:
+  enum class MessageState { Welcome, Loading, Empty, Error, Notice };
   void buildUi();
   void buildActions();
   void applyTheme();
+  void syncChrome();
   void chooseFile();
   void chooseFolder();
   void refresh(const QString& preferred={});
   void showFile(const QString& path,bool force=false);
-  void showMessage(const QString& heading,const QString& body);
+  void showMessage(MessageState state, const QString& heading, const QString& body);
   void selectKind(Kind kind);
   void syncSelection();
   int currentRow() const;
@@ -57,6 +68,7 @@ private:
   void trashCurrent();
   void revealCurrent();
   void defaultApplication();
+  void showAbout();
   void toast(const QString& text);
   FolderModel* model_;
   MediaFilter* filter_;
@@ -65,14 +77,25 @@ private:
   VideoPane* video_ = nullptr; // intentionally lazy: photo launch never creates a player
   QStackedWidget* stage_ = nullptr;
   QWidget* messagePage_ = nullptr;
+  QWidget* messageActions_ = nullptr;
   QWidget* top_ = nullptr;
+  QWidget* filters_ = nullptr;
+  QWidget* headerDivider_ = nullptr;
   QWidget* bottom_ = nullptr;
+  QWidget* viewTools_ = nullptr;
+  QLabel* welcomeMark_ = nullptr;
   QLabel* heading_ = nullptr;
   QLabel* message_ = nullptr;
-  QLabel* title_ = nullptr;
-  QLabel* subtitle_ = nullptr;
+  FileLabel* title_ = nullptr;
+  FileLabel* subtitle_ = nullptr;
   QLabel* counter_ = nullptr;
   QLabel* scale_ = nullptr;
+  QPushButton* previous_ = nullptr;
+  QPushButton* open_ = nullptr;
+  QPushButton* next_ = nullptr;
+  QPushButton* reveal_ = nullptr;
+  QPushButton* stripButton_ = nullptr;
+  QPushButton* infoButton_ = nullptr;
   QPlainTextEdit* info_ = nullptr;
   QListView* strip_ = nullptr;
   QButtonGroup* kinds_ = nullptr;
@@ -82,10 +105,11 @@ private:
   QAction* slideshowAction_ = nullptr;
   QFileSystemWatcher files_;
   QTimer refreshTimer_, slideshowTimer_;
-  QString current_, preferred_, identity_;
+  QString current_, preferred_, identity_, folderError_;
   int requestedEdge_ = 2048;
   bool actualPending_ = false, preservePending_ = false;
   bool chromeHidden_ = false, closing_ = false;
+  MessageState messageState_ = MessageState::Welcome;
   Decoded decoded_;
 };
 }

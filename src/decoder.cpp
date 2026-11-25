@@ -29,10 +29,14 @@ Decoded decodeImage(const QString& path, int edge) {
     out.image = desktop::readNativeImage(path, edge, &out.original);
 #endif
   if (out.image.isNull()) {
-    out.error = "Не удалось открыть изображение. " + reader.errorString();
-    auto suffix = QFileInfo(path).suffix().toLower();
-    if (suffix == "heic" || suffix == "heif" || suffix == "avif")
-      out.error += " Для этого формата нужен подходящий системный кодек или плагин Qt. Оригинал не изменён.";
+    const auto extension = QFileInfo(path).suffix().toLower();
+    if (extension == "heic" || extension == "heif" || extension == "avif") {
+      out.error = "Проверьте целостность файла. Для этого формата также нужен системный кодек или плагин Qt.";
+    } else if (reader.error() == QImageReader::FileNotFoundError) {
+      out.error = "Файл перемещён или удалён.";
+    } else {
+      out.error = "Файл повреждён, недоступен или сохранён в формате, который декодер не поддерживает.";
+    }
     return out;
   }
   // Defend against plugins that ignore scaled decoding. Peak allocation is also
